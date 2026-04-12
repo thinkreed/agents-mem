@@ -279,34 +279,74 @@ WHERE f.id = ?
 
 ## 五、接口设计
 
-### 5.1 MCP 工具列表
+### 5.1 MCP CRUD 工具 (4 Tools)
 
-| 工具名 | 层级 | 功能 |
+采用统一的 CRUD 接口设计，将 24 个专用工具简化为 4 个通用工具：
+
+| 工具名 | 功能 | 参数 |
 |--------|------|------|
-| scope_set | L0 | 设置 Agent 作用域 |
-| team_create | L0 | 创建团队 |
-| team_join | L0 | Agent 加入团队 |
-| index_search | L1 | URI + 元数据定位 |
-| uri_resolve | L1 | 解析 mem:// URI |
-| document_save | L2 | 保存原始文档 |
-| document_abstract | L2 | L0 摘要 |
-| document_overview | L2 | L1 概述 |
-| document_read | L2 | L2 完整内容 |
-| asset_save | L2 | 保存二进制素材 |
-| hybrid_search | L4 | 混合搜索 |
-| semantic_search | L4 | 向量搜索 |
-| fts_search | L4 | FTS 搜索 |
-| progressive_search | L3-5 | 渐进式披露 |
-| fact_extract | L5 | 事实提取 |
-| fact_search | L5 | 事实搜索 |
-| fact_trace | L5 | 追溯来源 |
-| entity_tree_build | L5 | 构建实体树 |
-| entity_tree_search | L5 | 实体树搜索 |
-| conversation_create | L3 | 创建会话 |
-| message_save | L3 | 保存消息 |
-| materials_ls | L2 | 素材目录列表 |
-| materials_tree | L2 | 素材目录树 |
-| materials_grep | L2 | 素材文本搜索 |
+| `mem_create` | 创建资源 | `resource`, `data`, `scope` |
+| `mem_read` | 读取/搜索资源 | `resource`, `query`, `scope` |
+| `mem_update` | 更新资源 | `resource`, `id`, `data`, `scope` |
+| `mem_delete` | 删除资源 | `resource`, `id`, `scope` |
+
+**支持的资源类型 (resource):**
+- `document` - 文档 (L0/L1/L2 分层)
+- `asset` - 二进制素材
+- `conversation` - 会话 (cascade 删除 messages)
+- `message` - 消息
+- `fact` - 事实 (自动提取)
+- `team` - 团队 (cascade 删除 members)
+
+**作用域 (scope):**
+```typescript
+{
+  userId: string;      // 必填
+  agentId?: string;    // 可选
+  teamId?: string;     // 可选
+}
+```
+
+**查询模式 (query):**
+
+| 模式 | 参数示例 | 说明 |
+|------|---------|------|
+| ID 查询 | `{ id: "doc-123" }` | 按 ID 获取单个资源 |
+| 搜索 | `{ search: "关键词", searchMode: "hybrid" }` | hybrid/fts/semantic/progressive |
+| 分层 | `{ id: "doc-123", tier: "L0" }` | L0 摘要 / L1 概述 / L2 完整 |
+| 追溯 | `{ id: "fact-123", trace: true }` | 追溯事实到源文档 |
+| 列表 | `{ list: true }` | 列出所有资源 |
+| 过滤 | `{ list: true, filters: { docType: "note" } }` | 按条件过滤 |
+
+### 5.2 资源-操作映射表
+
+| 资源 | create | read | update | delete | 特殊行为 |
+|------|--------|------|--------|--------|----------|
+| document | ✅ | ✅ ID/Search/Tier | ✅ 部分更新 | ✅ cascade index | tier 参数控制 L0/L1/L2 |
+| asset | ✅ | ✅ ID/List | ✅ title/description | ✅ | 需要 filename/fileType/fileSize/storagePath |
+| conversation | ✅ | ✅ ID/List | ✅ title | ✅ cascade messages | 删除时自动删除关联 messages |
+| message | ✅ | ✅ ID/List | ✅ content | ✅ | 需要 conversationId + role |
+| fact | ✅ 自动提取 | ✅ ID/Search/Trace | ✅ verified/confidence | ✅ | create 时触发 LLM 自动提取 |
+| team | ✅ | ✅ ID/List/Members | ✅ name/visibility | ✅ cascade members | 删除时自动删除关联 members |
+
+### 5.3 搜索模式详细说明
+
+| searchMode | 描述 | 适用资源 |
+|------------|------|----------|
+| `hybrid` | FTS + Vector + RRF (默认) | document, fact |
+| `fts` | BM25 全文搜索 | document |
+| `semantic` | 纯向量搜索 | document |
+| `progressive` | 渐进式披露 (L0→L1→L2) | document |
+
+**progressive 搜索参数:**
+```typescript
+{
+  search: "关键词",
+  searchMode: "progressive",
+  tokenBudget: 500,  // Token 预算
+  tier: "L0"         // 起始层级
+}
+```
 
 ---
 

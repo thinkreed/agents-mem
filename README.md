@@ -78,17 +78,27 @@ src/
 
 ## API Reference
 
-### MCP Tools
+### MCP CRUD Tools (4 Tools)
+
+The MCP server exposes 4 unified CRUD tools that cover all entity types:
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `mem_search` | Hybrid search memories | `query`, `scope`, `limit` |
-| `mem_get` | Get memory by mem:// URI | `uri` |
-| `mem_write` | Store new memory | `content`, `scope`, `type` |
-| `mem_facts_extract` | Extract atomic facts | `document_id` |
-| `mem_tiered_get` | Get tiered content | `memory_id`, `tier` |
-| `mem_scope_list` | List available scopes | `user_id` |
-| `mem_entity_search` | Search entity tree | `entity_name`, `depth` |
+| `mem_create` | Create a resource | `resource`, `data`, `scope` |
+| `mem_read` | Read/search resources | `resource`, `query`, `scope` |
+| `mem_update` | Update a resource | `resource`, `id`, `data`, `scope` |
+| `mem_delete` | Delete a resource | `resource`, `id`, `scope` |
+
+**Resources:** `document`, `asset`, `conversation`, `message`, `fact`, `team`
+
+**Scope:** `{ userId, agentId?, teamId? }` - userId required for most resources
+
+**Query modes (mem_read):**
+- `{ id }` - Get by ID
+- `{ search, searchMode }` - Search (hybrid, fts, semantic, progressive)
+- `{ list }` - List all
+- `{ tier }` - Get tiered content (L0, L1, L2)
+- `{ trace }` - Trace fact to source
 
 ## Tech Stack
 
@@ -181,17 +191,27 @@ src/
 
 ## API 参考
 
-### MCP 工具
+### MCP CRUD 工具 (4 个工具)
+
+MCP 服务器暴露 4 个统一的 CRUD 工具，覆盖所有实体类型：
 
 | 工具 | 描述 | 参数 |
 |------|------|------|
-| `mem_search` | 混合搜索记忆 | `query`, `scope`, `limit` |
-| `mem_get` | 通过 mem:// URI 获取记忆 | `uri` |
-| `mem_write` | 存储新记忆 | `content`, `scope`, `type` |
-| `mem_facts_extract` | 提取原子事实 | `document_id` |
-| `mem_tiered_get` | 获取分层内容 | `memory_id`, `tier` |
-| `mem_scope_list` | 列出可用作用域 | `user_id` |
-| `mem_entity_search` | 搜索实体树 | `entity_name`, `depth` |
+| `mem_create` | 创建资源 | `resource`, `data`, `scope` |
+| `mem_read` | 读取/搜索资源 | `resource`, `query`, `scope` |
+| `mem_update` | 更新资源 | `resource`, `id`, `data`, `scope` |
+| `mem_delete` | 删除资源 | `resource`, `id`, `scope` |
+
+**资源类型:** `document`, `asset`, `conversation`, `message`, `fact`, `team`
+
+**作用域:** `{ userId, agentId?, teamId? }` - userId 对大多数资源必填
+
+**查询模式 (mem_read):**
+- `{ id }` - 按 ID 获取
+- `{ search, searchMode }` - 搜索 (hybrid, fts, semantic, progressive)
+- `{ list }` - 列出所有
+- `{ tier }` - 获取分层内容 (L0, L1, L2)
+- `{ trace }` - 追溯事实来源
 
 ## 技术栈
 
