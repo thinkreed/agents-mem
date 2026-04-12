@@ -504,3 +504,47 @@ LanceDB 向量表在 MCP server 启动时自动初始化：
 ---
 
 **文档结束**
+
+---
+
+## 十一、2026-04-12 API 验证错误消息增强
+
+本次修复了 API 验证错误消息缺乏使用提示的问题，使 LLM 能够更容易理解正确的调用格式。
+
+### 11.1 修复的错误类型
+
+| 错误类型 | 原消息 | 新消息 |
+|----------|--------|--------|
+| userId 缺失 | `"userId is required for document"` | `"userId is required for document. Provide scope: { userId: \"...\" }"` |
+| query 缺失 | `"query is required for mem_read"` | `"query is required for mem_read. Valid formats: { id }, { search }, { list }, { filters }"` |
+| 无效 query | `"Invalid query for {resource}"` | `"Invalid query for {resource}. Valid keys: {keys}"` |
+
+### 11.2 每种资源的有效 Query Keys
+
+| 资源 | 有效 Keys |
+|------|-----------|
+| document | `id, search, list, tier` |
+| asset | `id, list` |
+| conversation | `id, list` |
+| message | `id, conversationId` |
+| fact | `id, filters` |
+| team | `id, list, filters` |
+
+### 11.3 新增测试用例
+
+- `tests/tools/mem_create.test.ts`: 4 个 userId 提示测试
+- `tests/tools/mem_read.test.ts`: 7 个 query 提示测试
+- `tests/setup.ts`: 全局 mock 清理配置
+- `vitest.config.ts`: Vitest 配置文件
+
+### 11.4 测试配置改进
+
+创建了 `vitest.config.ts` 和 `tests/setup.ts` 以防止 mock 污染：
+
+```typescript
+// tests/setup.ts
+beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.restoreAllMocks());
+```
+
+遵循 `mock污染处理.md` 的最佳实践。

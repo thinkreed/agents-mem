@@ -66,6 +66,24 @@ src/
 - **Embedding dim**: 768 (nomic-embed-text)
 - **Token budgets**: L0=100, L1=2000
 
+## ERROR MESSAGES
+
+Validation errors include usage hints to guide LLM callers:
+
+| Error Type | Message Format |
+|------------|----------------|
+| userId missing | `"userId is required for {resource}. Provide scope: { userId: \"...\" }"` |
+| query missing | `"query is required for mem_read. Valid formats: { id }, { search }, { list }, { filters }"` |
+| Invalid query | `"Invalid query for {resource}. Valid keys: {keys}"` |
+
+Example valid keys per resource:
+- document: `id, search, list, tier`
+- asset: `id, list`
+- conversation: `id, list`
+- message: `id, conversationId`
+- fact: `id, filters`
+- team: `id, list, filters`
+
 ## ANTI-PATTERNS (THIS PROJECT)
 
 - **No logger usage**: `src/utils/logger.ts` defined but unused
