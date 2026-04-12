@@ -25,7 +25,8 @@ export const TABLE_NAMES = [
   'facts',
   'entity_nodes',
   'extraction_status',
-  'memory_access_log'
+  'memory_access_log',
+  'queue_jobs'
 ] as const;
 
 /**
@@ -299,6 +300,26 @@ CREATE TABLE memory_access_log (
 )`;
 
 // ============================================================================
+// QUEUE JOBS
+// ============================================================================
+
+const CREATE_QUEUE_JOBS = `
+CREATE TABLE queue_jobs (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  payload TEXT NOT NULL,
+  retries INTEGER NOT NULL DEFAULT 0,
+  result_data TEXT,
+  error TEXT,
+  user_id TEXT NOT NULL,
+  agent_id TEXT,
+  team_id TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+)`;
+
+// ============================================================================
 // Indexes
 // ============================================================================
 
@@ -357,6 +378,10 @@ CREATE INDEX idx_access_log_user ON memory_access_log(user_id);
 CREATE INDEX idx_access_log_memory ON memory_access_log(memory_type, memory_id);
 CREATE INDEX idx_access_log_time ON memory_access_log(timestamp)`;
 
+const INDEXES_QUEUE_JOBS = `
+CREATE INDEX idx_queue_status ON queue_jobs(status);
+CREATE INDEX idx_queue_type ON queue_jobs(type)`;
+
 // ============================================================================
 // Table SQL Map
 // ============================================================================
@@ -375,7 +400,8 @@ const CREATE_TABLE_MAP: Record<SchemaTable, string> = {
   facts: CREATE_FACTS,
   entity_nodes: CREATE_ENTITY_NODES,
   extraction_status: CREATE_EXTRACTION_STATUS,
-  memory_access_log: CREATE_MEMORY_ACCESS_LOG
+  memory_access_log: CREATE_MEMORY_ACCESS_LOG,
+  queue_jobs: CREATE_QUEUE_JOBS
 };
 
 const INDEXES_MAP: Record<SchemaTable, string> = {
@@ -392,7 +418,8 @@ const INDEXES_MAP: Record<SchemaTable, string> = {
   facts: INDEXES_FACTS,
   entity_nodes: INDEXES_ENTITY_NODES,
   extraction_status: INDEXES_EXTRACTION_STATUS,
-  memory_access_log: INDEXES_MEMORY_ACCESS_LOG
+  memory_access_log: INDEXES_MEMORY_ACCESS_LOG,
+  queue_jobs: INDEXES_QUEUE_JOBS
 };
 
 // ============================================================================

@@ -123,7 +123,7 @@ export class MigrationManager {
     }
   }
   
-  /**
+   /**
    * Apply specific version migration
    */
   private applyVersionMigration(version: number): void {

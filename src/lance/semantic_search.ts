@@ -5,6 +5,7 @@
 
 import { getTable } from './connection';
 import { Scope } from '../core/types';
+import { ScopeFilter } from '../core/scope';
 
 /**
  * Semantic search result
@@ -48,12 +49,10 @@ export async function semanticSearch(options: SemanticSearchOptions): Promise<Se
     .limit(limit);
   
   if (options.scope) {
-    query = query.where(`user_id = '${options.scope.userId}'`);
-    if (options.scope.agentId) {
-      query = query.where(`agent_id = '${options.scope.agentId}'`);
-    }
-    if (options.scope.teamId) {
-      query = query.where(`team_id = '${options.scope.teamId}'`);
+    const filter = new ScopeFilter(options.scope);
+    const lanceFilter = filter.toLanceFilter();
+    if (lanceFilter) {
+      query = query.where(lanceFilter);
     }
   }
   

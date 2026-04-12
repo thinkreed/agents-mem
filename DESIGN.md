@@ -503,10 +503,6 @@ LanceDB 向量表在 MCP server 启动时自动初始化：
 
 ---
 
-**文档结束**
-
----
-
 ## 十一、2026-04-12 API 验证错误消息增强
 
 本次修复了 API 验证错误消息缺乏使用提示的问题，使 LLM 能够更容易理解正确的调用格式。
@@ -548,3 +544,90 @@ afterEach(() => vi.restoreAllMocks());
 ```
 
 遵循 `mock污染处理.md` 的最佳实践。
+
+---
+
+## 十二、2026-04-12 搜索 Bug 修复 + 异步队列系统
+
+本次修复了搜索返回空结果的 5 个关键 Bug，并新增异步队列系统用于 embedding 生成。
+
+### 12.1 修复的 Bug 列表
+
+| Bug | 描述 | 修复文件 | 状态 |
+|------|------|----------|------|
+| Bug 1 | hybridSearchDocuments 未使用真正的 hybrid search | `src/lance/hybrid_search.ts:402-415` | ✅ 已修复 |
+| Bug 2 | semantic_search scope 过滤器被覆盖 | `src/lance/semantic_search.ts:51-57` | ✅ 已修复 |
+| Bug 3 | storeDocument 不生成 embedding | `src/materials/store.ts` | ✅ 已修复 |
+| Bug 4 | checkAndRebuild 不处理 lanceCount=0 | `src/lance/hybrid_search.ts:275` | ✅ 已修复 |
+| Bug 5 | FTS 索引从不创建 | `src/queue/embedding_queue.ts` | ✅ 已修复 |
+
+### 12.2 Bug 修复详情
+
+**Bug 1: hybridSearchDocuments 使用纯向量搜索**
+- 原代码：调用 `searchDocumentVectors` 返回硬编码 `score=0.5`
+- 修复：直接调用 `hybridSearch()` 函数，返回真实 RRF 分数
+
+**Bug 2: semantic_search 多个 .where() 调用覆盖**
+- 原代码：`query.where(userId).where(agentId).where(teamId)` - 只最后一个生效
+- 修复：使用 `ScopeFilter.toLanceFilter()` 合并为单次 `.where()` 调用
+
+**Bug 3: 文档创建时不生成向量**
+- 原代码：`storeDocument` 只写入 SQLite，不写入 LanceDB
+- 修复：集成异步队列，文档创建后触发 embedding job
+
+**Bug 4: checkAndRebuild 逻辑错误**
+- 原代码：`lanceCount > 0 && sqliteDocs > lanceCount` - lanceCount=0 时跳过重建
+- 修复：改为 `sqliteDocs > lanceCount` - 包括 lanceCount=0 场景
+
+### 12.3 异步队列系统架构
+
+新增后台队列系统用于异步 embedding 生成和 FTS 索引创建：
+
+```
+storeDocument (materials/store.ts)
+    ↓ 创建 SQLite 文档
+    ↓ 触发异步队列 job
+EmbeddingQueue (queue/embedding_queue.ts)
+    ↓ 处理 pending jobs
+    ↓ 调用 Ollama getEmbedding()
+    ↓ 写入 LanceDB documents_vec
+    ↓ 创建 FTS 索引
+```
+
+**新增文件**：
+- `src/queue/types.ts` - Job 类型定义
+- `src/queue/embedding_queue.ts` - 队列实现
+- `src/queue/index.ts` - 导出
+- `src/sqlite/queue_jobs.ts` - SQLite CRUD
+- `tests/queue/embedding_queue.test.ts` - 35 个测试
+
+**队列特性**：
+- Job 类型：`embedding`, `fts_index`
+- Job 状态：`pending` → `processing` → `completed` / `failed`
+- 最大重试：3 次
+- 后台处理：fire-and-forget，不阻塞主流程
+
+### 12.4 目录结构更新
+
+```
+src/
+├── queue/           # NEW: 异步队列系统
+│   ├── types.ts           # Job 类型定义
+│   ├── embedding_queue.ts # EmbeddingQueue 类
+│   └── index.ts           # 导出 + singleton
+├── sqlite/
+│   └── queue_jobs.ts      # NEW: 队列 jobs CRUD
+```
+
+### 12.5 测试覆盖
+
+| 测试文件 | 测试数 | 状态 |
+|----------|--------|------|
+| `tests/lance/hybrid_search_fixes.test.ts` | 11 | ✅ PASS |
+| `tests/lance/semantic_search_fixes.test.ts` | 8 | ✅ PASS |
+| `tests/lance/rebuild.test.ts` | 13 | ✅ PASS |
+| `tests/queue/embedding_queue.test.ts` | 35 | ✅ PASS |
+
+---
+
+**文档结束**

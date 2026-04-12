@@ -31,7 +31,8 @@ describe('SQLite Schema', () => {
         'documents', 'assets', 'tiered_content',
         'conversations', 'messages',
         'facts', 'entity_nodes',
-        'extraction_status', 'memory_access_log'
+        'extraction_status', 'memory_access_log',
+        'queue_jobs' // NEW: Background job queue
       ];
       
       for (const table of expectedTables) {
@@ -39,8 +40,8 @@ describe('SQLite Schema', () => {
       }
     });
 
-    it('should have 14 tables total', () => {
-      expect(TABLE_NAMES.length).toBe(14);
+    it('should have 15 tables total', () => {
+      expect(TABLE_NAMES.length).toBe(15);
     });
   });
 
@@ -75,7 +76,7 @@ describe('SQLite Schema', () => {
       const names = getTableNames();
       
       expect(Array.isArray(names)).toBe(true);
-      expect(names.length).toBe(14);
+      expect(names.length).toBe(15);
     });
   });
 
