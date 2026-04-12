@@ -1,9 +1,14 @@
 /**
  * @file tests/tools/handlers.test.ts
+ * @description TDD tests for tool handlers implementation
+ * 
+ * Tests for:
+ * - Task 3: hybrid_search handler
+ * - Task 4: fact_extract handler + entity tree linking
+ * - Task 5: entity_tree_build handler
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
-import { TOOL_HANDLERS, getHandler } from '../../src/tools/handlers';
 
 // Mock all dependencies
 vi.mock('../../src/materials/store', () => ({
@@ -23,15 +28,32 @@ vi.mock('../../src/entity_tree/search', () => ({
   searchEntityTree: vi.fn()
 }));
 
+vi.mock('../../src/entity_tree/builder', () => ({
+  getEntityTreeBuilder: vi.fn()
+}));
+
+vi.mock('../../src/facts/linker', () => ({
+  linkFactToEntities: vi.fn()
+}));
+
 vi.mock('../../src/materials/filesystem', () => ({
   listMaterials: vi.fn()
 }));
 
-// Import mocked modules after vi.mock calls
+vi.mock('../../src/embedder/ollama', () => ({
+  getEmbedding: vi.fn()
+}));
+
+// Import handlers after mocks
+import { TOOL_HANDLERS, getHandler } from '../../src/tools/handlers';
 import { storeDocument } from '../../src/materials/store';
+import { hybridSearchDocuments } from '../../src/lance/hybrid_search';
 import { getFactExtractor } from '../../src/facts/extractor';
 import { searchEntityTree } from '../../src/entity_tree/search';
+import { getEntityTreeBuilder } from '../../src/entity_tree/builder';
+import { linkFactToEntities } from '../../src/facts/linker';
 import { listMaterials } from '../../src/materials/filesystem';
+import { getEmbedding } from '../../src/embedder/ollama';
 
 describe('Tool Handlers', () => {
   beforeEach(() => {
@@ -43,9 +65,8 @@ describe('Tool Handlers', () => {
   });
 
   describe('TOOL_HANDLERS map', () => {
-    it('should have all 6 handlers defined', () => {
+    it('should have all handlers defined', () => {
       expect(TOOL_HANDLERS).toBeDefined();
-      expect(Object.keys(TOOL_HANDLERS)).toHaveLength(6);
       expect(TOOL_HANDLERS['scope_set']).toBeDefined();
       expect(TOOL_HANDLERS['document_save']).toBeDefined();
       expect(TOOL_HANDLERS['hybrid_search']).toBeDefined();
@@ -99,7 +120,6 @@ describe('Tool Handlers', () => {
         userId: 'user-456',
         title: 'Another Document',
         content: 'More content'
-        // docType not provided
       };
       
       await handler(params);
@@ -108,24 +128,168 @@ describe('Tool Handlers', () => {
         userId: 'user-456',
         title: 'Another Document',
         content: 'More content',
-        docType: 'note' // default value
+        docType: 'note'
       });
     });
   });
 
+  // Task 3: hybrid_search handler TDD tests
   describe('hybrid_search handler', () => {
-    it('should return empty results (placeholder)', async () => {
+    it('should generate embedding from query', async () => {
+      const mockEmbedding = new Float32Array(768).fill(0.5);
+      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
+      
+      const mockResults = [
+        { id: 'doc-1', content: 'Test', score: 0.9, sourceType: 'documents' }
+      ];
+      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+      
       const handler = TOOL_HANDLERS['hybrid_search'];
-      const params = { query: 'test search', userId: 'user-123' };
+      const params = {
+        query: 'search query',
+        userId: 'user-123'
+      };
+      
+      await handler(params);
+      
+      expect(getEmbedding).toHaveBeenCalledWith('search query');
+    });
+
+    it('should call hybridSearchDocuments with embedding and scope', async () => {
+      const mockEmbedding = new Float32Array(768).fill(0.5);
+      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
+      
+      const mockResults = [
+        { id: 'doc-1', content: 'Test', score: 0.9, sourceType: 'documents' }
+      ];
+      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+      
+      const handler = TOOL_HANDLERS['hybrid_search'];
+      const params = {
+        query: 'search query',
+        userId: 'user-123',
+        limit: 5
+      };
       
       const result = await handler(params);
       
-      expect(result).toEqual({ results: [] });
+      expect(hybridSearchDocuments).toHaveBeenCalledWith({
+        queryVector: mockEmbedding,
+        queryText: 'search query',
+        limit: 5,
+        scope: { userId: 'user-123' }
+      });
+      expect(result).toEqual({ results: mockResults });
+    });
+
+    it('should return error info when embedding fails', async () => {
+      (getEmbedding as Mock).mockRejectedValue(new Error('Embedding service unavailable'));
+      
+      const handler = TOOL_HANDLERS['hybrid_search'];
+      const params = {
+        query: 'search query',
+        userId: 'user-123'
+      };
+      
+      const result = await handler(params);
+      
+      expect(result).toHaveProperty('results');
+      expect(result.results).toEqual([]);
+      expect(result).toHaveProperty('error');
+      expect(result.error).toContain('embedding');
+    });
+
+    it('should use default limit of 10 when not provided', async () => {
+      const mockEmbedding = new Float32Array(768).fill(0.5);
+      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
+      (hybridSearchDocuments as Mock).mockResolvedValue([]);
+      
+      const handler = TOOL_HANDLERS['hybrid_search'];
+      const params = {
+        query: 'search query',
+        userId: 'user-123'
+      };
+      
+      await handler(params);
+      
+      expect(hybridSearchDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 10 })
+      );
+    });
+
+    it('should return search results', async () => {
+      const mockEmbedding = new Float32Array(768).fill(0.5);
+      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
+      
+      const mockResults = [
+        { id: 'doc-1', content: 'Result 1', score: 0.9, sourceType: 'documents' },
+        { id: 'doc-2', content: 'Result 2', score: 0.8, sourceType: 'documents' }
+      ];
+      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+      
+      const handler = TOOL_HANDLERS['hybrid_search'];
+      const params = {
+        query: 'search query',
+        userId: 'user-123'
+      };
+      
+      const result = await handler(params);
+      
+      expect(result.results.length).toBe(2);
+      expect(result.results[0].id).toBe('doc-1');
     });
   });
 
+  // Task 4: fact_extract handler TDD tests
   describe('fact_extract handler', () => {
-    it('should call getFactExtractor and return empty factIds', async () => {
+    it('should call extractAndSave with correct params', async () => {
+      const mockExtractor = {
+        extract: vi.fn().mockResolvedValue([]),
+        extractAndSave: vi.fn().mockResolvedValue(['fact-1', 'fact-2'])
+      };
+      (getFactExtractor as Mock).mockReturnValue(mockExtractor);
+      
+      const handler = TOOL_HANDLERS['fact_extract'];
+      const params = {
+        userId: 'user-123',
+        sourceType: 'documents',
+        sourceId: 'doc-456',
+        content: 'Document content to extract facts from'
+      };
+      
+      const result = await handler(params);
+      
+      expect(mockExtractor.extractAndSave).toHaveBeenCalledWith({
+        userId: 'user-123',
+        sourceType: 'documents',
+        sourceId: 'doc-456',
+        content: 'Document content to extract facts from'
+      });
+      expect(result.factIds.length).toBe(2);
+    });
+
+    it('should return extracted factIds', async () => {
+      const mockExtractor = {
+        extract: vi.fn().mockResolvedValue([]),
+        extractAndSave: vi.fn().mockResolvedValue(['fact-1', 'fact-2', 'fact-3'])
+      };
+      (getFactExtractor as Mock).mockReturnValue(mockExtractor);
+      
+      const handler = TOOL_HANDLERS['fact_extract'];
+      const params = {
+        userId: 'user-123',
+        sourceType: 'documents',
+        sourceId: 'doc-456',
+        content: 'Content'
+      };
+      
+      const result = await handler(params);
+      
+      expect(result).toHaveProperty('factIds');
+      expect(result.factIds).toEqual(['fact-1', 'fact-2', 'fact-3']);
+    });
+
+    it('should return empty factIds when extraction fails', async () => {
       const mockExtractor = {
         extract: vi.fn().mockResolvedValue([]),
         extractAndSave: vi.fn().mockResolvedValue([])
@@ -135,14 +299,14 @@ describe('Tool Handlers', () => {
       const handler = TOOL_HANDLERS['fact_extract'];
       const params = {
         userId: 'user-123',
-        sourceType: 'document',
-        sourceId: 'doc-456'
+        sourceType: 'documents',
+        sourceId: 'doc-456',
+        content: 'Content'
       };
       
       const result = await handler(params);
       
-      expect(getFactExtractor).toHaveBeenCalled();
-      expect(result).toEqual({ factIds: [] });
+      expect(result.factIds).toEqual([]);
     });
   });
 
@@ -186,21 +350,91 @@ describe('Tool Handlers', () => {
       expect(result).toEqual(mockResult);
     });
   });
-});
 
-describe('getHandler', () => {
-  it('should return correct handler for known tools', () => {
-    expect(getHandler('scope_set')).toBe(TOOL_HANDLERS['scope_set']);
-    expect(getHandler('document_save')).toBe(TOOL_HANDLERS['document_save']);
-    expect(getHandler('hybrid_search')).toBe(TOOL_HANDLERS['hybrid_search']);
-    expect(getHandler('fact_extract')).toBe(TOOL_HANDLERS['fact_extract']);
-    expect(getHandler('materials_ls')).toBe(TOOL_HANDLERS['materials_ls']);
-    expect(getHandler('entity_tree_search')).toBe(TOOL_HANDLERS['entity_tree_search']);
+  // Task 5: entity_tree_build handler TDD tests
+  describe('entity_tree_build handler', () => {
+    it('should build tree from entities array', async () => {
+      const mockBuilder = {
+        buildTree: vi.fn().mockResolvedValue('built')
+      };
+      (getEntityTreeBuilder as Mock).mockReturnValue(mockBuilder);
+      
+      const handler = TOOL_HANDLERS['entity_tree_build'];
+      const params = {
+        userId: 'user-123',
+        entities: [
+          { name: 'Entity1', facts: ['fact-1'] },
+          { name: 'Entity2', facts: ['fact-2', 'fact-3'] }
+        ]
+      };
+      
+      const result = await handler(params);
+      
+      expect(mockBuilder.buildTree).toHaveBeenCalledWith('user-123', params.entities);
+      expect(result).toHaveProperty('status');
+      expect(result.status).toBe('built');
+    });
+
+    it('should return entitiesCount in response', async () => {
+      const mockBuilder = {
+        buildTree: vi.fn().mockResolvedValue('built')
+      };
+      (getEntityTreeBuilder as Mock).mockReturnValue(mockBuilder);
+      
+      const handler = TOOL_HANDLERS['entity_tree_build'];
+      const params = {
+        userId: 'user-123',
+        entities: [
+          { name: 'Entity1', facts: ['fact-1'] },
+          { name: 'Entity2', facts: ['fact-2'] }
+        ]
+      };
+      
+      const result = await handler(params);
+      
+      expect(result).toHaveProperty('entitiesCount');
+      expect(result.entitiesCount).toBe(2);
+    });
+
+    it('should return error for empty entities array', async () => {
+      const handler = TOOL_HANDLERS['entity_tree_build'];
+      const params = {
+        userId: 'user-123',
+        entities: []
+      };
+      
+      const result = await handler(params);
+      
+      expect(result).toHaveProperty('error');
+      expect(result.error).toContain('entities');
+    });
+
+    it('should return error when entities not provided', async () => {
+      const handler = TOOL_HANDLERS['entity_tree_build'];
+      const params = {
+        userId: 'user-123'
+      };
+      
+      const result = await handler(params);
+      
+      expect(result).toHaveProperty('error');
+    });
   });
 
-  it('should return undefined for unknown tool', () => {
-    expect(getHandler('unknown_tool')).toBeUndefined();
-    expect(getHandler('nonexistent')).toBeUndefined();
-    expect(getHandler('')).toBeUndefined();
+  describe('getHandler', () => {
+    it('should return correct handler for known tools', () => {
+      expect(getHandler('scope_set')).toBe(TOOL_HANDLERS['scope_set']);
+      expect(getHandler('document_save')).toBe(TOOL_HANDLERS['document_save']);
+      expect(getHandler('hybrid_search')).toBe(TOOL_HANDLERS['hybrid_search']);
+      expect(getHandler('fact_extract')).toBe(TOOL_HANDLERS['fact_extract']);
+      expect(getHandler('materials_ls')).toBe(TOOL_HANDLERS['materials_ls']);
+      expect(getHandler('entity_tree_search')).toBe(TOOL_HANDLERS['entity_tree_search']);
+    });
+
+    it('should return undefined for unknown tool', () => {
+      expect(getHandler('unknown_tool')).toBeUndefined();
+      expect(getHandler('nonexistent')).toBeUndefined();
+      expect(getHandler('')).toBeUndefined();
+    });
   });
 });
