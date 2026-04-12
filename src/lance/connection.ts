@@ -206,3 +206,27 @@ export async function listTables(): Promise<string[]> {
   const db = await getConnection();
   return db.listTables();
 }
+
+/**
+ * Check if a table exists in LanceDB
+ */
+export async function tableExists(tableName: string): Promise<boolean> {
+  const db = await getConnection();
+  const tables = await db.listTables();
+  return tables.includes(tableName);
+}
+
+/**
+ * Initialize all vector tables
+ * Creates documents_vec, messages_vec, facts_vec, assets_vec, tiered_vec
+ * Idempotent - safe to call multiple times
+ */
+export async function initTables(): Promise<void> {
+  const tableNames = ['documents_vec', 'messages_vec', 'facts_vec', 'assets_vec', 'tiered_vec'];
+  for (const tableName of tableNames) {
+    if (!await tableExists(tableName)) {
+      // Pass full tableName - getSchemaForTable strips _vec suffix internally
+      await createTableByName(tableName);
+    }
+  }
+}

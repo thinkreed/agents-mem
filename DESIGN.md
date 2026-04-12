@@ -460,4 +460,47 @@ mem_read({ resource: 'document', query: { search: 'query', searchMode: 'progress
 
 ---
 
+## 十、2026-04-12 向量索引初始化修复
+
+本次修复了 LanceDB 向量表初始化缺失问题，新增启动时初始化和搜索重建回退。
+
+### 10.1 向量表初始化流程
+
+LanceDB 向量表在 MCP server 启动时自动初始化：
+
+1. SQLite migrations 完成
+2. `initTables()` 创建所有 5 个向量表
+3. 创建的表：documents_vec, messages_vec, facts_vec, assets_vec, tiered_vec
+4. 初始化失败时 server 进入降级模式（搜索返回错误）
+
+### 10.2 命名约定
+
+- Schema registry 支持带 `_vec` 后缀的表名
+- `getSchemaForTable('documents_vec')` 等价于 `getSchemaForTable('documents')`
+- 所有向量表使用 `_vec` 后缀以区分 SQLite 表
+
+### 10.3 重建回退
+
+当向量表缺失或不完整时，搜索操作触发自动重建：
+
+1. 检测表不存在 → 调用 `initTables()` 创建表结构
+2. 从 SQLite 扫描该用户的所有文档
+3. 通过 Ollama 生成嵌入向量
+4. 将向量写入 LanceDB
+5. 搜索继续执行
+
+**重建状态检测**：
+- LanceDB 向量数量 < SQLite 文档数量 → 不完整状态，触发重建
+
+**新增文件**：
+- `tests/lance/init.test.ts` - 初始化测试
+- `tests/lance/schema_suffix.test.ts` - 命名测试
+- `tests/lance/rebuild.test.ts` - 重建测试
+
+**新增函数**：
+- `src/lance/connection.ts`: `initTables()`, `tableExists()`
+- `src/lance/hybrid_search.ts`: `checkAndRebuild()`, `rebuildTable()`
+
+---
+
 **文档结束**
