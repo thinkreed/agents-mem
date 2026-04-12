@@ -5,6 +5,7 @@
 
 import { getTable } from './connection';
 import { Scope } from '../core/types';
+import { ScopeFilter } from '../core/scope';
 
 /**
  * Document vector record
@@ -90,14 +91,10 @@ export async function searchDocumentVectors(
   // Use nearestTo for vector search (LanceDB 0.27+ API)
   let query = table.query().nearestTo(Array.from(queryVector)).limit(limit);
   
+  // Apply scope filter using ScopeFilter (single filter with AND)
   if (scope) {
-    query = query.where(`user_id = '${scope.userId}'`);
-    if (scope.agentId) {
-      query = query.where(`agent_id = '${scope.agentId}'`);
-    }
-    if (scope.teamId) {
-      query = query.where(`team_id = '${scope.teamId}'`);
-    }
+    const filter = new ScopeFilter(scope);
+    query = query.where(filter.toLanceFilter());
   }
   
   const results = await query.toArray();

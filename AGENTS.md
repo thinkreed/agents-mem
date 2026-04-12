@@ -32,11 +32,15 @@ src/
 | Add entity type | `src/core/types.ts` | EntityType union |
 | SQLite CRUD | `src/sqlite/{entity}.ts` | Pattern: create/get/update/delete/search |
 | Vector search | `src/lance/hybrid_search.ts` | RRF: vector + FTS |
+| FTS only search | `src/lance/fts_search.ts` | BM25 scoring |
+| Assets vector | `src/lance/assets_vec.ts` | Asset embeddings CRUD |
 | MCP tool | `src/tools/crud_handlers.ts` | 4 unified tools |
 | URI parsing | `src/core/uri.ts` | mem:// scheme |
 | Scope filtering | `src/core/scope.ts` | SQL + LanceDB filters |
 | Tiered content | `src/tiered/generator.ts` | L0/L1 generation |
 | Fact extraction | `src/facts/extractor.ts` | Ollama-based |
+| Fact verification | `src/facts/verifier.ts` | Cross-check with sources |
+| Fact linking | `src/facts/linker.ts` | Deduplication |
 
 ## CODE MAP
 
@@ -65,7 +69,6 @@ src/
 ## ANTI-PATTERNS (THIS PROJECT)
 
 - **No logger usage**: `src/utils/logger.ts` defined but unused
-- **ScopeFilter unused**: Class exists but not wired to queries
 - **No public index.ts**: Package has no root export barrel
 
 ## UNIQUE STYLES

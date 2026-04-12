@@ -116,6 +116,19 @@ export function getEntityNodeById(id: string): EntityNodeRecord | undefined {
 }
 
 /**
+ * Get entity node by user ID and entity name
+ * Used for deduplication - checks if entity node already exists
+ */
+export function getEntityNodeByUserAndName(userId: string, entityName: string): EntityNodeRecord | undefined {
+  const db = getConnection();
+  
+  return db.queryOne<EntityNodeRecord>(
+    'SELECT * FROM entity_nodes WHERE user_id = ? AND entity_name = ?',
+    [userId, entityName]
+  );
+}
+
+/**
  * Get child nodes by parent
  */
 export function getEntityNodesByParent(parentId: string): EntityNodeRecord[] {

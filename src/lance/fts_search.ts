@@ -37,38 +37,61 @@ export interface FTSSearchConvenienceOptions {
 }
 
 /**
- * Perform FTS search
+ * Perform FTS search using LanceDB fullTextSearch API with BM25 scoring
  */
 export async function ftsSearch(options: FTSSearchOptions): Promise<FTSSearchResult[]> {
   const table = await getTable(options.tableName);
   const limit = options.limit ?? 10;
   const column = options.column ?? 'content';
   
-  // LanceDB supports text search via query
-  // This is a placeholder implementation
-  // Actual FTS depends on LanceDB version and configuration
+  // Handle empty query - return empty results
+  if (!options.queryText || options.queryText.trim() === '') {
+    return [];
+  }
   
-  let query = table.query().limit(limit);
+  // Build query with fullTextSearch for BM25 scoring
+  let query = table.query()
+    .fullTextSearch(options.queryText, { columns: column })
+    .limit(limit);
   
+  // Add scope filter if provided
   if (options.scope) {
-    query = query.where(`user_id = '${options.scope.userId}'`);
+    const scopeFilter = buildScopeFilter(options.scope);
+    if (scopeFilter) {
+      query = query.where(scopeFilter);
+    }
   }
   
   // Execute query
   const results = await query.toArray();
   
-  // Filter results that match query text (simple substring match)
-  const filtered = results.filter((r: Record<string, unknown>) => {
-    const content = r[column] as string;
-    if (!content) return false;
-    return content.toLowerCase().includes(options.queryText.toLowerCase());
-  });
-  
-  return filtered.map((r: Record<string, unknown>) => ({
+  // Convert results to FTSSearchResult format with BM25 scores
+  return results.map((r: Record<string, unknown>) => ({
     id: r.id as string,
     content: r[column] as string,
-    score: 0.5 // Placeholder score
+    score: (r._score as number) ?? 0.5 // BM25 score from LanceDB
   }));
+}
+
+/**
+ * Build LanceDB scope filter expression
+ */
+function buildScopeFilter(scope: Scope): string | null {
+  const conditions: string[] = [];
+  
+  if (scope.userId) {
+    conditions.push(`user_id == "${scope.userId}"`);
+  }
+  
+  if (scope.agentId) {
+    conditions.push(`agent_id == "${scope.agentId}"`);
+  }
+  
+  if (scope.teamId) {
+    conditions.push(`team_id == "${scope.teamId}"`);
+  }
+  
+  return conditions.length > 0 ? conditions.join(' && ') : null;
 }
 
 /**

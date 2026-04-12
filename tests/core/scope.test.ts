@@ -348,7 +348,7 @@ describe('Scope Utilities', () => {
       expect(lanceFilter).toContain('agent_id == "agent1"');
       expect(lanceFilter).toContain('team_id == "team1"');
       expect(lanceFilter).toContain('is_global == true');
-      expect(lanceFilter).toContain('&&');
+      expect(lanceFilter).toContain(' AND ');
     });
   });
 });

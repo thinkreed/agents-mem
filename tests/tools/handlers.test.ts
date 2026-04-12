@@ -55,6 +55,22 @@ import { linkFactToEntities } from '../../src/facts/linker';
 import { listMaterials } from '../../src/materials/filesystem';
 import { getEmbedding } from '../../src/embedder/ollama';
 
+// Type definitions for handler return values
+interface HybridSearchResult {
+  results: unknown[];
+  error?: string;
+}
+
+interface FactExtractResult {
+  factIds: string[];
+}
+
+interface EntityTreeBuildResult {
+  status: string;
+  entitiesCount?: number;
+  error?: string;
+}
+
 describe('Tool Handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -191,7 +207,7 @@ describe('Tool Handlers', () => {
         userId: 'user-123'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as HybridSearchResult;
       
       expect(result).toHaveProperty('results');
       expect(result.results).toEqual([]);
@@ -233,10 +249,10 @@ describe('Tool Handlers', () => {
         userId: 'user-123'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as HybridSearchResult;
       
       expect(result.results.length).toBe(2);
-      expect(result.results[0].id).toBe('doc-1');
+      expect((result.results[0] as {id: string}).id).toBe('doc-1');
     });
   });
 
@@ -257,7 +273,7 @@ describe('Tool Handlers', () => {
         content: 'Document content to extract facts from'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as FactExtractResult;
       
       expect(mockExtractor.extractAndSave).toHaveBeenCalledWith({
         userId: 'user-123',
@@ -283,7 +299,7 @@ describe('Tool Handlers', () => {
         content: 'Content'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as FactExtractResult;
       
       expect(result).toHaveProperty('factIds');
       expect(result.factIds).toEqual(['fact-1', 'fact-2', 'fact-3']);
@@ -304,7 +320,7 @@ describe('Tool Handlers', () => {
         content: 'Content'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as FactExtractResult;
       
       expect(result.factIds).toEqual([]);
     });
@@ -368,7 +384,7 @@ describe('Tool Handlers', () => {
         ]
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as EntityTreeBuildResult;
       
       expect(mockBuilder.buildTree).toHaveBeenCalledWith('user-123', params.entities);
       expect(result).toHaveProperty('status');
@@ -390,7 +406,7 @@ describe('Tool Handlers', () => {
         ]
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as EntityTreeBuildResult;
       
       expect(result).toHaveProperty('entitiesCount');
       expect(result.entitiesCount).toBe(2);
@@ -403,7 +419,7 @@ describe('Tool Handlers', () => {
         entities: []
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as EntityTreeBuildResult;
       
       expect(result).toHaveProperty('error');
       expect(result.error).toContain('entities');
@@ -415,7 +431,7 @@ describe('Tool Handlers', () => {
         userId: 'user-123'
       };
       
-      const result = await handler(params);
+      const result = await handler(params) as EntityTreeBuildResult;
       
       expect(result).toHaveProperty('error');
     });

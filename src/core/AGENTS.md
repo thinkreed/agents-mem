@@ -29,7 +29,7 @@ mem:// scheme parser and builder.
 
 ## SCOPE
 
-ScopeFilter class exists (scope.ts:141) but is NOT wired to queries.
+ScopeFilter class exists at scope.ts:141 and IS NOW WIRED to all vector queries.
 
 - `createScope(userId, agentId?, teamId?)` - Scope factory
 - `validateScope(scope)` - validates required fields
@@ -49,5 +49,4 @@ STORAGE_DIR = ~/.agents_mem/    // SQLite + LanceDB
 
 ## ANTI-PATTERNS
 
-- **ScopeFilter unused**: Class at scope.ts:141 exists but never imported by query modules
 - **No public index.ts**: Package has no root export barrel

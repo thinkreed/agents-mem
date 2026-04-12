@@ -4,7 +4,7 @@
  */
 
 import { getFactById } from '../sqlite/facts';
-import { createEntityNode, getEntityNodeById, updateEntityNode } from '../sqlite/entity_nodes';
+import { createEntityNode, getEntityNodeById, getEntityNodeByUserAndName, updateEntityNode } from '../sqlite/entity_nodes';
 import { generateUUID } from '../utils/uuid';
 
 /**
@@ -17,20 +17,43 @@ export async function linkFactToEntities(factId: string, entities: string[]): Pr
   const nodeIds: string[] = [];
   
   for (const entityName of entities) {
-    // Create or update entity node
-    const nodeId = generateUUID();
+    // Check if entity node already exists for this user + entity name
+    const existingNode = getEntityNodeByUserAndName(fact.user_id, entityName);
     
-    createEntityNode({
-      id: nodeId,
-      user_id: fact.user_id,
-      agent_id: fact.agent_id,
-      team_id: fact.team_id,
-      entity_name: entityName,
-      depth: 0,
-      linked_fact_ids: JSON.stringify([factId])
-    });
-    
-    nodeIds.push(nodeId);
+    if (existingNode) {
+      // Parse existing linked_fact_ids array
+      const existingFactIds: string[] = existingNode.linked_fact_ids
+        ? JSON.parse(existingNode.linked_fact_ids)
+        : [];
+      
+      // Add new factId if not already present (avoid duplicates)
+      if (!existingFactIds.includes(factId)) {
+        existingFactIds.push(factId);
+        
+        // Update entity node with accumulated fact IDs
+        updateEntityNode(existingNode.id, {
+          linked_fact_ids: JSON.stringify(existingFactIds)
+        });
+      }
+      
+      // Return existing node ID
+      nodeIds.push(existingNode.id);
+    } else {
+      // Create new entity node
+      const nodeId = generateUUID();
+      
+      createEntityNode({
+        id: nodeId,
+        user_id: fact.user_id,
+        agent_id: fact.agent_id,
+        team_id: fact.team_id,
+        entity_name: entityName,
+        depth: 0,
+        linked_fact_ids: JSON.stringify([factId])
+      });
+      
+      nodeIds.push(nodeId);
+    }
   }
   
   return nodeIds;

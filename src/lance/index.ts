@@ -50,8 +50,8 @@ export async function createVectorIndex(tableName: string): Promise<void> {
 export async function createFTSIndex(tableName: string, column: string): Promise<void> {
   const table = await getTable(tableName);
   
-  // LanceDB 0.27+ supports FTS via fullTextSearch query method
-  // FTS index is created implicitly when using fullTextSearch
+  // Create BM25-based FTS index using LanceDB Index.fts()
+  await table.createIndex(column, { config: Index.fts() });
 }
 
 /**

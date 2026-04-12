@@ -52,6 +52,7 @@ export interface AssetInput {
   description?: string;
   metadata?: string;
   lance_id?: string;
+  text_extracted?: boolean;
 }
 
 /**

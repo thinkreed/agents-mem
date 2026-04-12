@@ -398,4 +398,66 @@ WHERE f.id = ?
 
 ---
 
+## 九、2026-04-12 审计修复
+
+本次审计修复了以下问题，所有功能现已完整实现:
+
+### 9.1 混合搜索实现
+
+| 功能 | 文件 | 状态 |
+|------|------|------|
+| 混合搜索 (FTS + 向量 + RRF) | `src/lance/hybrid_search.ts` | ✅ 已实现 |
+| 纯 FTS 搜索 (BM25) | `src/lance/fts_search.ts` | ✅ 已实现 |
+| 纯向量搜索 | `src/lance/semantic_search.ts` | ✅ 已实现 |
+
+### 9.2 资产向量支持
+
+| 功能 | 文件 | 状态 |
+|------|------|------|
+| assets_vec 表 | `src/lance/assets_vec.ts` | ✅ 已实现 |
+| 完整 CRUD 操作 | | ✅ 已实现 |
+
+### 9.3 事实验证与链接
+
+| 功能 | 文件 | 状态 |
+|------|------|------|
+| Fact Verifier | `src/facts/verifier.ts` | ✅ 已实现 |
+| Cross-check with source documents | | ✅ 已实现 |
+| Confidence recalculation | | ✅ 已实现 |
+| Entity Linker | `src/facts/linker.ts` | ✅ 已实现 |
+| Deduplication by user_id + entity_name | | ✅ 已实现 |
+
+### 9.4 作用域过滤
+
+| 功能 | 文件 | 状态 |
+|------|------|------|
+| ScopeFilter | `src/core/scope.ts` | ✅ 已连线 |
+| Full agent_id/team_id support | | ✅ 已实现 |
+| All vector queries | | ✅ 已实现 |
+
+### 9.5 MCP 类型修复
+
+| 修复 | 文件 | 状态 |
+|------|------|------|
+| MCPToolResponse index signature | `src/core/types.ts` | ✅ 已添加 |
+| AssetInput text_extracted field | `src/core/types.ts` | ✅ 已添加 |
+
+### 9.6 搜索模式说明
+
+```typescript
+// Hybrid: FTS + Vector + RRF (default, most accurate)
+mem_read({ resource: 'document', query: { search: 'query', searchMode: 'hybrid' } })
+
+// FTS: Full-text search with BM25 scoring
+mem_read({ resource: 'document', query: { search: 'query', searchMode: 'fts' } })
+
+// Semantic: Pure vector similarity
+mem_read({ resource: 'document', query: { search: 'query', searchMode: 'semantic' } })
+
+// Progressive: L0 tier with fallback
+mem_read({ resource: 'document', query: { search: 'query', searchMode: 'progressive' } })
+```
+
+---
+
 **文档结束**

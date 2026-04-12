@@ -8,7 +8,7 @@ Vector storage layer with hybrid search (vector + FTS + RRF).
 |------|----------|-------|
 | Connection | connection.ts | Async singleton, LanceConnection |
 | Schema defs | schema.ts | Arrow schemas, EMBED_DIMENSION=768 |
-| Vector tables | documents_vec.ts, messages_vec.ts, facts_vec.ts, tiered_vec.ts | Per-resource tables |
+| Vector tables | documents_vec.ts, assets_vec.ts, messages_vec.ts, facts_vec.ts, tiered_vec.ts | Per-resource tables |
 | Hybrid search | hybrid_search.ts | RRF reranking of vector+FTS |
 | FTS only | fts_search.ts | Keyword search fallback |
 | Vector only | semantic_search.ts | Pure vector similarity |

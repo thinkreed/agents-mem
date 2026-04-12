@@ -12,7 +12,7 @@ import { resetConnection, closeConnection, setDatabasePath } from '../../src/sql
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
 import { createUser } from '../../src/sqlite/users';
 import { createFact, getFactById } from '../../src/sqlite/facts';
-import { getEntityNodeById } from '../../src/sqlite/entity_nodes';
+import { getEntityNodeById, getEntityNodeByUserAndName } from '../../src/sqlite/entity_nodes';
 
 // UUID regex for validation
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -214,6 +214,208 @@ describe('Fact Linker', () => {
       const result = await getFactsForEntity(nodeIds[0]);
 
       expect(result).toEqual(['fact-single']);
+    });
+  });
+
+  describe('deduplication', () => {
+    it('should return same node ID when same entity linked twice', async () => {
+      // Create two facts for the same user
+      createFact({
+        id: 'fact-d1',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'First fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      createFact({
+        id: 'fact-d2',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-2',
+        content: 'Second fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      // Link first fact to "Project X"
+      const result1 = await linkFactToEntities('fact-d1', ['Project X']);
+      expect(result1.length).toBe(1);
+
+      // Link second fact to the same entity "Project X"
+      const result2 = await linkFactToEntities('fact-d2', ['Project X']);
+      expect(result2.length).toBe(1);
+
+      // Both should return the SAME node ID (deduplication)
+      expect(result2[0]).toBe(result1[0]);
+    });
+
+    it('should accumulate multiple facts in linked_fact_ids array', async () => {
+      // Create two facts for the same user
+      createFact({
+        id: 'fact-a1',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'First fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      createFact({
+        id: 'fact-a2',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-2',
+        content: 'Second fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      // Link both facts to "Project X"
+      await linkFactToEntities('fact-a1', ['Project X']);
+      await linkFactToEntities('fact-a2', ['Project X']);
+
+      // Find the entity node
+      const node = getEntityNodeByUserAndName('user-1', 'Project X');
+      expect(node).toBeDefined();
+
+      // linked_fact_ids should contain both facts (accumulated, not replaced)
+      const linkedFactIds = JSON.parse(node!.linked_fact_ids || '[]');
+      expect(linkedFactIds).toContain('fact-a1');
+      expect(linkedFactIds).toContain('fact-a2');
+      expect(linkedFactIds.length).toBe(2);
+    });
+
+    it('should not duplicate fact IDs in linked_fact_ids array', async () => {
+      // Create a fact
+      createFact({
+        id: 'fact-dup',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'Test fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      // Link the SAME fact to the same entity twice (edge case)
+      await linkFactToEntities('fact-dup', ['Entity X']);
+      await linkFactToEntities('fact-dup', ['Entity X']);
+
+      // Find the entity node
+      const node = getEntityNodeByUserAndName('user-1', 'Entity X');
+      expect(node).toBeDefined();
+
+      // linked_fact_ids should only contain the fact once (no duplicates)
+      const linkedFactIds = JSON.parse(node!.linked_fact_ids || '[]');
+      expect(linkedFactIds).toEqual(['fact-dup']); // Only one entry, not two
+    });
+
+    it('should not create duplicate entity nodes in database', async () => {
+      // Create two facts
+      createFact({
+        id: 'fact-n1',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'First',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      createFact({
+        id: 'fact-n2',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-2',
+        content: 'Second',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      // Link both facts to "Project X"
+      const nodeId1 = await linkFactToEntities('fact-n1', ['Project X']);
+      const nodeId2 = await linkFactToEntities('fact-n2', ['Project X']);
+
+      // Both should return same ID
+      expect(nodeId1[0]).toBe(nodeId2[0]);
+
+      // Query by user + name should return exactly one node
+      const node = getEntityNodeByUserAndName('user-1', 'Project X');
+      expect(node).toBeDefined();
+      expect(node!.id).toBe(nodeId1[0]);
+    });
+
+    it('should create separate nodes for different users with same entity name', async () => {
+      // Create second user
+      createUser({ id: 'user-2', name: 'User 2' });
+
+      // Create facts for both users
+      createFact({
+        id: 'fact-u1',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'User 1 fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      createFact({
+        id: 'fact-u2',
+        user_id: 'user-2',
+        source_type: 'documents',
+        source_id: 'doc-1',
+        content: 'User 2 fact',
+        fact_type: 'preference',
+        entities: '[]',
+        importance: 0.5,
+        confidence: 0.8,
+        verified: false
+      });
+
+      // Link same entity name to different users
+      const result1 = await linkFactToEntities('fact-u1', ['Project X']);
+      const result2 = await linkFactToEntities('fact-u2', ['Project X']);
+
+      // Should create separate nodes (different IDs)
+      expect(result1[0]).not.toBe(result2[0]);
+
+      // Each user should have their own entity node
+      const node1 = getEntityNodeByUserAndName('user-1', 'Project X');
+      const node2 = getEntityNodeByUserAndName('user-2', 'Project X');
+
+      expect(node1?.id).toBe(result1[0]);
+      expect(node2?.id).toBe(result2[0]);
+      expect(node1?.linked_fact_ids).toBe(JSON.stringify(['fact-u1']));
+      expect(node2?.linked_fact_ids).toBe(JSON.stringify(['fact-u2']));
     });
   });
 });

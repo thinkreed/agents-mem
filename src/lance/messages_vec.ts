@@ -5,6 +5,7 @@
 
 import { getTable } from './connection';
 import { Scope } from '../core/types';
+import { ScopeFilter } from '../core/scope';
 
 /**
  * Message vector record
@@ -82,8 +83,10 @@ export async function searchMessageVectors(
   // Use nearestTo for vector search (LanceDB 0.27+ API)
   let query = table.query().nearestTo(Array.from(queryVector)).limit(limit);
   
+  // Apply scope filter using ScopeFilter
   if (scope) {
-    query = query.where(`user_id = '${scope.userId}'`);
+    const filter = new ScopeFilter(scope);
+    query = query.where(filter.toLanceFilter());
   }
   
   const results = await query.toArray();

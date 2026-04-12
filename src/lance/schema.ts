@@ -122,6 +122,29 @@ export function createFactsVecSchema(): Schema {
 }
 
 // ============================================================================
+// Assets Vector Schema
+// ============================================================================
+
+/**
+ * Assets vector table schema for LanceDB
+ * Stores asset embeddings with metadata
+ */
+export function createAssetsVecSchema(): Schema {
+  return new Schema([
+    stringField('id', false),           // Primary key
+    stringField('content', false),      // Asset description/content
+    vectorField('vector', EMBED_DIMENSION, false), // Embedding vector
+    stringField('title'),
+    stringField('user_id'),
+    stringField('agent_id'),
+    stringField('team_id'),
+    stringField('asset_type'),          // File type (pdf, image, etc.)
+    stringField('storage_path'),        // File storage path
+    timestampField('created_at')
+  ]);
+}
+
+// ============================================================================
 // Tiered Vector Schema
 // ============================================================================
 
@@ -161,6 +184,8 @@ export function getSchemaForTable(tableName: string): Schema | null {
       return createFactsVecSchema();
     case 'tiered':
       return createTieredVecSchema();
+    case 'assets':
+      return createAssetsVecSchema();
     default:
       return null;
   }
@@ -174,7 +199,8 @@ export function getTableSchemas(): Record<string, Schema> {
     documents: createDocumentsVecSchema(),
     messages: createMessagesVecSchema(),
     facts: createFactsVecSchema(),
-    tiered: createTieredVecSchema()
+    tiered: createTieredVecSchema(),
+    assets: createAssetsVecSchema()
   };
 }
 

@@ -27,6 +27,7 @@ import { getEmbedding } from '../embedder/ollama';
  */
 export interface MCPToolResponse {
   content: Array<{ type: 'text'; text: string }>;
+  [key: string]: unknown;
 }
 
 /**

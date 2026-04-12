@@ -5,6 +5,7 @@
 
 import { getTable } from './connection';
 import { Scope } from '../core/types';
+import { ScopeFilter } from '../core/scope';
 
 /**
  * Tiered vector record
@@ -84,12 +85,14 @@ export async function searchTieredVectors(
   // Use nearestTo for vector search (LanceDB 0.27+ API)
   let query = table.query().nearestTo(Array.from(queryVector)).limit(limit);
   
+  // Apply scope filter using ScopeFilter
   if (scope) {
-    query = query.where(`user_id = '${scope.userId}'`);
+    const filter = new ScopeFilter(scope);
+    query = query.where(filter.toLanceFilter());
   }
-  
+
   if (tier !== undefined) {
-    query = query.where(`tier = ${tier}`);
+    query = query.where(`tier == ${tier}`);
   }
   
   const results = await query.toArray();
@@ -106,10 +109,12 @@ export async function searchTieredVectors(
 export async function getTieredVectorsByTier(tier: number, scope?: Scope): Promise<TieredVectorRecord[]> {
   const table = await getTable('tiered_vec');
   
-  let query = table.query().where(`tier = ${tier}`);
+  let query = table.query().where(`tier == ${tier}`);
   
+  // Apply scope filter using ScopeFilter
   if (scope) {
-    query = query.where(`user_id = '${scope.userId}'`);
+    const filter = new ScopeFilter(scope);
+    query = query.where(filter.toLanceFilter());
   }
   
   const results = await query.toArray();

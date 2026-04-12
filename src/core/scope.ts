@@ -179,9 +179,10 @@ export class ScopeFilter {
     return conditions.join(' AND ');
   }
   
-  /**
-   * Generate LanceDB filter expression
-   */
+/**
+    * Generate LanceDB filter expression
+    * Uses AND operator (not && which is not supported)
+    */
   toLanceFilter(): string {
     const conditions: string[] = [`user_id == "${this.userId}"`];
     
@@ -197,6 +198,6 @@ export class ScopeFilter {
       conditions.push(`is_global == true`);
     }
     
-    return conditions.join(' && ');
+    return conditions.join(' AND ');
   }
 }
