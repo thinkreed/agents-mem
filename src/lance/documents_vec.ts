@@ -78,6 +78,26 @@ export async function deleteDocumentVector(id: string): Promise<void> {
 }
 
 /**
+ * Clear all document vectors in the table
+ */
+export async function clearDocumentVectors(): Promise<void> {
+  const table = await getTable('documents_vec');
+  
+  // Delete all rows
+  await table.delete('id IS NOT NULL');
+}
+
+/**
+ * Get all document vector IDs
+ */
+export async function getAllDocumentVectorIds(): Promise<string[]> {
+  const table = await getTable('documents_vec');
+  
+  const results = await table.query().toArray();
+  return results.map((r: Record<string, unknown>) => r.id as string);
+}
+
+/**
  * Search document vectors by similarity
  */
 export async function searchDocumentVectors(

@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { runMigrations } from './sqlite/migrations';
+import { initTables } from './lance/connection';
 import { handleMemCreate, handleMemRead, handleMemUpdate, handleMemDelete } from './tools/crud_handlers';
 
 /**
@@ -15,6 +16,15 @@ import { handleMemCreate, handleMemRead, handleMemUpdate, handleMemDelete } from
 async function createMCPServer(): Promise<McpServer> {
   // Run migrations first
   runMigrations();
+  
+  // Initialize LanceDB vector tables
+  try {
+    await initTables();
+    console.error('[LanceDB] Vector tables initialized');
+  } catch (error) {
+    console.error('[LanceDB] Initialization failed:', error);
+    // Continue in degraded mode
+  }
   
   const server = new McpServer({
     name: 'agents-mem',
