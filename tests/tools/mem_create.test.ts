@@ -254,4 +254,56 @@ describe('mem_create tool', () => {
       expect(createUser).toHaveBeenCalled();
     });
   });
+
+  /**
+   * TDD: Error message enhancement tests
+   * These tests verify that validation errors include usage hints
+   * @see E:\bugs\agents-mem-tools-api-errors.md - Error 1: missing userId
+   */
+  describe('error message enhancements - userId hints', () => {
+    it('should hint scope.userId when userId missing for document', async () => {
+      const result = await getHandler()({
+        resource: 'document',
+        data: { title: 'Test', content: 'Content' },
+        scope: {} // missing userId
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('userId is required');
+      expect(parsed.error).toContain('scope');
+      expect(parsed.error).toContain('userId');
+    });
+
+    it('should hint scope.userId when userId missing for asset', async () => {
+      const result = await getHandler()({
+        resource: 'asset',
+        data: { filename: 'test.pdf', fileType: 'pdf', fileSize: 1024, storagePath: '/s' },
+        scope: {} // missing userId
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('userId is required');
+      expect(parsed.error).toContain('scope');
+    });
+
+    it('should hint scope.userId when userId missing for conversation', async () => {
+      const result = await getHandler()({
+        resource: 'conversation',
+        data: { agentId: 'agent-1' },
+        scope: {} // missing userId
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('userId is required');
+      expect(parsed.error).toContain('scope');
+    });
+
+    it('should hint scope.userId when userId missing for fact', async () => {
+      const result = await getHandler()({
+        resource: 'fact',
+        data: { sourceType: 'documents', sourceId: 'doc-1', content: 'Test' },
+        scope: {} // missing userId
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('userId is required');
+      expect(parsed.error).toContain('scope');
+    });
+  });
 });

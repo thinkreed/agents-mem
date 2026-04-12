@@ -332,4 +332,97 @@ describe('mem_read tool', () => {
       expect(result.content[0].text).toContain('error');
     });
   });
+
+  /**
+   * TDD: Error message enhancement tests
+   * These tests verify that validation errors include usage hints
+   * @see E:\bugs\agents-mem-tools-api-errors.md - Errors 2-4: query issues
+   */
+  describe('error message enhancements - query hints', () => {
+    it('should hint valid query formats when query missing', async () => {
+      const result = await getHandler()({
+        resource: 'document',
+        scope: { userId: 'user-1' }
+        // missing query entirely
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('query is required');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('search');
+      expect(parsed.error).toContain('list');
+    });
+
+    it('should hint valid document query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'document',
+        query: { content: 'x' }, // invalid - should use 'search' or 'id'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for document');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('search');
+      expect(parsed.error).toContain('list');
+    });
+
+    it('should hint valid asset query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'asset',
+        query: { content: 'x' }, // invalid - should use 'id' or 'list'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for asset');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('list');
+    });
+
+    it('should hint valid conversation query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'conversation',
+        query: { content: 'x' }, // invalid - should use 'id' or 'list'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for conversation');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('list');
+    });
+
+    it('should hint valid message query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'message',
+        query: { content: 'x' }, // invalid - should use 'id' or 'conversationId'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for message');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('conversationId');
+    });
+
+    it('should hint valid fact query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'fact',
+        query: { content: 'x' }, // invalid - should use 'id' or 'filters'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for fact');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('filters');
+    });
+
+    it('should hint valid team query keys when invalid key used', async () => {
+      const result = await getHandler()({
+        resource: 'team',
+        query: { content: 'x' }, // invalid - should use 'id', 'list', or 'filters'
+        scope: { userId: 'user-1' }
+      });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain('Invalid query for team');
+      expect(parsed.error).toContain('id');
+      expect(parsed.error).toContain('list');
+    });
+  });
 });
