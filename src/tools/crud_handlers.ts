@@ -80,7 +80,7 @@ export async function handleMemCreate(params: {
 
   switch (validResource) {
     case 'document': {
-      if (!userId) return errorResponse('userId is required for document');
+      if (!userId) return errorResponse('userId is required for document. Provide scope: { userId: "..." }');
       if (!data.title) return errorResponse('title is required for document');
       if (!data.content) return errorResponse('content is required for document');
       
@@ -97,7 +97,7 @@ export async function handleMemCreate(params: {
     }
 
     case 'asset': {
-      if (!userId) return errorResponse('userId is required for asset');
+      if (!userId) return errorResponse('userId is required for asset. Provide scope: { userId: "..." }');
       if (!data.filename) return errorResponse('filename is required for asset');
       if (!data.fileType) return errorResponse('fileType is required for asset');
       if (!data.fileSize) return errorResponse('fileSize is required for asset');
@@ -116,7 +116,7 @@ export async function handleMemCreate(params: {
     }
 
     case 'conversation': {
-      if (!userId) return errorResponse('userId is required for conversation');
+      if (!userId) return errorResponse('userId is required for conversation. Provide scope: { userId: "..." }');
       if (!data.agentId) return errorResponse('agentId is required for conversation');
       
       const id = generateUUID();
@@ -151,7 +151,7 @@ export async function handleMemCreate(params: {
     }
 
     case 'fact': {
-      if (!userId) return errorResponse('userId is required for fact');
+      if (!userId) return errorResponse('userId is required for fact. Provide scope: { userId: "..." }');
       if (!data.sourceType) return errorResponse('sourceType is required for fact');
       if (!data.sourceId) return errorResponse('sourceId is required for fact');
       if (!data.content) return errorResponse('content is required for fact');
@@ -203,7 +203,7 @@ export async function handleMemRead(params: {
   }
 
   if (!query) {
-    return errorResponse('query is required for mem_read');
+    return errorResponse('query is required for mem_read. Valid formats: { id }, { search }, { list }, { filters }');
   }
 
   switch (validResource) {
@@ -325,7 +325,7 @@ export async function handleMemRead(params: {
         return successResponse(filtered);
       }
 
-      return errorResponse('Invalid query for document');
+      return errorResponse('Invalid query for document. Valid keys: id, search, list, tier');
     }
 
     case 'asset': {
@@ -340,7 +340,7 @@ export async function handleMemRead(params: {
         return successResponse(materials);
       }
 
-      return errorResponse('Invalid query for asset');
+      return errorResponse('Invalid query for asset. Valid keys: id, list');
     }
 
     case 'conversation': {
@@ -355,7 +355,7 @@ export async function handleMemRead(params: {
         return successResponse(convs);
       }
 
-      return errorResponse('Invalid query for conversation');
+      return errorResponse('Invalid query for conversation. Valid keys: id, list');
     }
 
     case 'message': {
@@ -370,7 +370,7 @@ export async function handleMemRead(params: {
         return successResponse(msgs);
       }
 
-      return errorResponse('Invalid query for message');
+      return errorResponse('Invalid query for message. Valid keys: id, conversationId');
     }
 
     case 'fact': {
@@ -397,7 +397,7 @@ export async function handleMemRead(params: {
         return successResponse(filtered);
       }
 
-      return errorResponse('Invalid query for fact');
+      return errorResponse('Invalid query for fact. Valid keys: id, filters');
     }
 
     case 'team': {
@@ -419,7 +419,7 @@ export async function handleMemRead(params: {
         return successResponse(teams);
       }
 
-      return errorResponse('Invalid query for team');
+      return errorResponse('Invalid query for team. Valid keys: id, list, filters');
     }
 
     default:
