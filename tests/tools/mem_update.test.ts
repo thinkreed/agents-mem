@@ -1,6 +1,6 @@
 /**
  * @file tests/tools/mem_update.test.ts
- * @description TDD tests for mem_update CRUD tool - RED phase
+ * @description TDD tests for mem_update CRUD tool - GREEN phase
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
@@ -39,6 +39,7 @@ vi.mock('../../src/sqlite/team_members', () => ({
   updateTeamMemberRole: vi.fn()
 }));
 
+// Import mocked modules
 import { getDocumentById, updateDocument } from '../../src/sqlite/documents';
 import { getAssetById, updateAsset } from '../../src/sqlite/assets';
 import { getConversationById, updateConversation } from '../../src/sqlite/conversations';
@@ -47,8 +48,10 @@ import { getFactById, updateFact } from '../../src/sqlite/facts';
 import { getTeamById, updateTeam } from '../../src/sqlite/teams';
 import { updateTeamMemberRole } from '../../src/sqlite/team_members';
 
-const mockHandler = vi.fn();
-const getHandler = () => mockHandler;
+// Import the actual handler
+import { handleMemUpdate } from '../../src/tools/crud_handlers';
+
+const getHandler = () => handleMemUpdate;
 
 describe('mem_update tool', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -64,7 +67,7 @@ describe('mem_update tool', () => {
         data: { title: 'New Title' },
         scope: { userId: 'user-1' }
       });
-      expect(updateDocument).toHaveBeenCalledWith(expect.objectContaining({ title: 'New Title' }));
+      expect(updateDocument).toHaveBeenCalledWith('doc-1', expect.objectContaining({ title: 'New Title' }));
     });
 
     it('should update document content', async () => {
@@ -76,11 +79,11 @@ describe('mem_update tool', () => {
         data: { content: 'New content' },
         scope: { userId: 'user-1' }
       });
-      expect(updateDocument).toHaveBeenCalledWith(expect.objectContaining({ content: 'New content' }));
+      expect(updateDocument).toHaveBeenCalledWith('doc-1', expect.objectContaining({ content: 'New content' }));
     });
 
     it('should partial update', async () => {
-      (getDocumentById as Mock).mockReturnValue({ id: 'doc-1', title: 'Old', content: 'Old' });
+      (getDocumentById as Mock).mockReturnValue({ id: 'doc-1', user_id: 'user-1', title: 'Old', content: 'Old' });
       (updateDocument as Mock).mockReturnValue({ id: 'doc-1' });
       await getHandler()({
         resource: 'document',
@@ -88,7 +91,7 @@ describe('mem_update tool', () => {
         data: { title: 'New' },
         scope: { userId: 'user-1' }
       });
-      expect(updateDocument).toHaveBeenCalledWith(expect.objectContaining({ title: 'New' }));
+      expect(updateDocument).toHaveBeenCalledWith('doc-1', expect.objectContaining({ title: 'New' }));
     });
 
     it('should return error if not found', async () => {
@@ -166,7 +169,7 @@ describe('mem_update tool', () => {
         data: { verified: true },
         scope: { userId: 'user-1' }
       });
-      expect(updateFact).toHaveBeenCalledWith(expect.objectContaining({ verified: true }));
+      expect(updateFact).toHaveBeenCalledWith('fact-1', expect.objectContaining({ verified: true }));
     });
 
     it('should not update fact content (immutable)', async () => {

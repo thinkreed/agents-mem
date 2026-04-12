@@ -53,8 +53,8 @@ Metadata → L0 Summary → L1 Overview → L2 Full → Facts → Agentic Reason
 ## Development
 
 ```bash
-# Start the server (if available)
-bun run src/server.ts
+# Start the MCP server
+bun run src/mcp_server.ts
 
 # Run specific test suite
 bun test tests/lance/
@@ -166,8 +166,8 @@ bun run typecheck
 ## 开发指南
 
 ```bash
-# 启动服务 (如果可用)
-bun run src/server.ts
+# 启动 MCP 服务
+bun run src/mcp_server.ts
 
 # 运行特定测试套件
 bun test tests/lance/

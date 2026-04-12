@@ -152,3 +152,10 @@ export function deleteConversation(id: string): boolean {
   
   return result.changes > 0;
 }
+
+/**
+ * List conversations by user (alias for getConversationsByScope)
+ */
+export function listConversations(userId: string, agentId?: string, teamId?: string): ConversationRecord[] {
+  return getConversationsByScope({ userId, agentId, teamId });
+}

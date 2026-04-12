@@ -2,11 +2,13 @@
  * @file tests/materials/store.test.ts
  * @description Material store operations tests using real SQLite
  * 
- * NOTE: We use real SQLite database instead of mocks to avoid cross-file mock pollution.
- * Each test uses isolated :memory: database with proper setup/teardown.
+ * * NOTE: We use real SQLite database instead of mocks to avoid cross-file mock pollution.
+ * * Each test uses isolated :memory: database with proper setup/teardown.
+ * * 
+ * * TDD Tests for Task 1: storeDocument embedding + LanceDB storage
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { storeDocument, storeAsset } from '../../src/materials/store';
 import { resetConnection, closeConnection, setDatabasePath } from '../../src/sqlite/connection';
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
@@ -19,17 +21,24 @@ import { getMemoryIndexByURI } from '../../src/sqlite/memory_index';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 describe('Material Store', () => {
+  let originalFetch: typeof fetch;
+
   beforeEach(() => {
     resetConnection();
     resetManager();
     setDatabasePath(':memory:');
     runMigrations();
     createUser({ id: 'user-1', name: 'Test User' });
+
+    // Mock fetch for Ollama embedding
+    originalFetch = global.fetch;
   });
 
   afterEach(() => {
     closeConnection();
     resetManager();
+    global.fetch = originalFetch;
+    vi.clearAllMocks();
   });
 
   describe('storeDocument', () => {
@@ -144,6 +153,83 @@ describe('Material Store', () => {
       const result = await storeDocument(input);
 
       expect(result.uri).toMatch(/^mem:\/\/user-1\/agent-1\/team-1\/documents\/[0-9a-f-]+$/);
+    });
+
+    // Task 1 TDD Tests: embedding + LanceDB
+    describe('embedding and LanceDB storage', () => {
+      it('should attempt to generate embedding for document content', async () => {
+        // Mock successful embedding response
+        global.fetch = vi.fn(async () => {
+          return {
+            ok: true,
+            json: async () => ({ embedding: new Array(768).fill(0.5) })
+          } as Response;
+        });
+
+        const input = {
+          userId: 'user-1',
+          docType: 'article',
+          title: 'Test Embedding',
+          content: 'This is content for embedding'
+        };
+
+        // storeDocument should succeed even without LanceDB
+        const result = await storeDocument(input);
+
+        expect(result).toBeDefined();
+        expect(result.id).toMatch(UUID_REGEX);
+        // Document should still be saved to SQLite even if embedding/LanceDB fails
+        const doc = getDocumentById(result.id);
+        expect(doc).toBeDefined();
+      });
+
+      it('should continue when embedding service unavailable', async () => {
+        // Mock failed embedding
+        global.fetch = vi.fn(async () => {
+          throw new Error('Ollama service unavailable');
+        });
+
+        const input = {
+          userId: 'user-1',
+          docType: 'note',
+          title: 'No Embedding',
+          content: 'Content'
+        };
+
+        // Should still save document to SQLite
+        const result = await storeDocument(input);
+
+        expect(result).toBeDefined();
+        expect(result.id).toMatch(UUID_REGEX);
+        const doc = getDocumentById(result.id);
+        expect(doc).toBeDefined();
+      });
+
+      it('should return result even when LanceDB unavailable', async () => {
+        // Mock successful embedding but no LanceDB connection
+        global.fetch = vi.fn(async () => {
+          return {
+            ok: true,
+            json: async () => ({ embedding: new Array(768).fill(0.5) })
+          } as Response;
+        });
+
+        const input = {
+          userId: 'user-1',
+          docType: 'article',
+          title: 'No LanceDB',
+          content: 'Content'
+        };
+
+        // Should still succeed with SQLite storage
+        const result = await storeDocument(input);
+
+        expect(result).toBeDefined();
+        expect(result.id).toMatch(UUID_REGEX);
+        // SQLite document should exist
+        const doc = getDocumentById(result.id);
+        expect(doc?.title).toBe('No LanceDB');
+      });
     });
   });
 

@@ -193,6 +193,20 @@ export function deleteMemoryIndex(uri: string): boolean {
 }
 
 /**
+ * Delete memory index by target
+ */
+export function deleteMemoryIndexByTarget(targetType: string, targetId: string): number {
+  const db = getConnection();
+  
+  const result = db.run(
+    'DELETE FROM memory_index WHERE target_type = ? AND target_id = ?',
+    [targetType, targetId]
+  );
+  
+  return result.changes;
+}
+
+/**
  * Search memory index
  */
 export function searchMemoryIndex(filter: MemoryIndexSearchFilter): MemoryIndexRecord[] {

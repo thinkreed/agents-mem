@@ -117,3 +117,14 @@ export function isTeamMember(teamId: string, agentId: string): boolean {
   
   return member !== null && member !== undefined;
 }
+
+/**
+ * Delete all members for a team
+ */
+export function deleteTeamMembersByTeam(teamId: string): number {
+  const db = getConnection();
+  
+  const result = db.run('DELETE FROM team_members WHERE team_id = ?', [teamId]);
+  
+  return result.changes;
+}

@@ -1,6 +1,6 @@
 /**
  * @file tests/tools/mem_delete.test.ts
- * @description TDD tests for mem_delete CRUD tool - RED phase
+ * @description TDD tests for mem_delete CRUD tool - GREEN phase
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
@@ -44,6 +44,7 @@ vi.mock('../../src/sqlite/memory_index', () => ({
   deleteMemoryIndexByTarget: vi.fn()
 }));
 
+// Import mocked modules
 import { getDocumentById, deleteDocument } from '../../src/sqlite/documents';
 import { getAssetById, deleteAsset } from '../../src/sqlite/assets';
 import { getConversationById, deleteConversation } from '../../src/sqlite/conversations';
@@ -53,8 +54,10 @@ import { getTeamById, deleteTeam } from '../../src/sqlite/teams';
 import { deleteTeamMembersByTeam } from '../../src/sqlite/team_members';
 import { deleteMemoryIndexByTarget } from '../../src/sqlite/memory_index';
 
-const mockHandler = vi.fn();
-const getHandler = () => mockHandler;
+// Import the actual handler
+import { handleMemDelete } from '../../src/tools/crud_handlers';
+
+const getHandler = () => handleMemDelete;
 
 describe('mem_delete tool', () => {
   beforeEach(() => vi.clearAllMocks());

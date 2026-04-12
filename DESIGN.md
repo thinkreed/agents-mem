@@ -1,8 +1,8 @@
 # agents-mem 设计文档 v1.0
 
-**版本**: 1.0
+**版本**: 1.1
 **日期**: 2026-04-12
-**状态**: 设计完成，待实施
+**状态**: 实施完成，4 CRUD 工具已上线
 
 ---
 
@@ -169,11 +169,10 @@ src/
 │   ├── search.ts           # 折叠树检索
 │
 ├── tools/                  # MCP 工具层
-│   ├── definitions.ts      # 工具定义 (Zod schema)
-│   ├── handlers.ts         # 工具处理函数
-│   └── registry.ts         # 工具注册
+│   ├── crud_handlers.ts    # CRUD 处理函数 (mem_create/read/update/delete)
+│   └── definitions.ts      # Zod schema 定义
 │
-├── server.ts               # MCP stdio 入口
+├── mcp_server.ts           # MCP stdio 入口 (4 CRUD 工具)
 │
 └── utils/                  # 工具函数
     ├── uuid.ts             # UUID 生成
@@ -281,7 +280,7 @@ WHERE f.id = ?
 
 ### 5.1 MCP CRUD 工具 (4 Tools)
 
-采用统一的 CRUD 接口设计，将 24 个专用工具简化为 4 个通用工具：
+采用统一的 CRUD 接口设计，将原有 24 个专用工具简化为 4 个通用工具：
 
 | 工具名 | 功能 | 参数 |
 |--------|------|------|
@@ -289,6 +288,10 @@ WHERE f.id = ?
 | `mem_read` | 读取/搜索资源 | `resource`, `query`, `scope` |
 | `mem_update` | 更新资源 | `resource`, `id`, `data`, `scope` |
 | `mem_delete` | 删除资源 | `resource`, `id`, `scope` |
+
+**实现文件:**
+- `src/tools/crud_handlers.ts` - 4 个 handler 函数实现
+- `src/mcp_server.ts` - MCP server 入口，注册 4 个工具
 
 **支持的资源类型 (resource):**
 - `document` - 文档 (L0/L1/L2 分层)

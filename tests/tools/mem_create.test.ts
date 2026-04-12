@@ -1,6 +1,6 @@
 /**
  * @file tests/tools/mem_create.test.ts
- * @description TDD tests for mem_create CRUD tool - RED phase
+ * @description TDD tests for mem_create CRUD tool - GREEN phase
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
@@ -49,10 +49,12 @@ vi.mock('../../src/facts/extractor', () => ({
   getFactExtractor: vi.fn()
 }));
 
-vi.mock('../../src/utils/uuid', () => ({
-  generateUUID: vi.fn()
-}));
+// DO NOT mock uuid module to avoid polluting other test files
+// vi.mock('../../src/utils/uuid', () => ({
+//   generateUUID: vi.fn()
+// }));
 
+// Import mocked modules
 import { storeDocument, storeAsset } from '../../src/materials/store';
 import { createConversation } from '../../src/sqlite/conversations';
 import { createMessage } from '../../src/sqlite/messages';
@@ -60,18 +62,21 @@ import { createTeam } from '../../src/sqlite/teams';
 import { addTeamMember } from '../../src/sqlite/team_members';
 import { createUser, getUserById } from '../../src/sqlite/users';
 import { getFactExtractor } from '../../src/facts/extractor';
-import { generateUUID } from '../../src/utils/uuid';
 
-const mockHandler = vi.fn();
-const getHandler = () => mockHandler;
+// Import the actual handler (uuid will use real implementation)
+import { handleMemCreate } from '../../src/tools/crud_handlers';
+
+const getHandler = () => handleMemCreate;
 
 describe('mem_create tool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (generateUUID as Mock).mockReturnValue('test-uuid');
     (getUserById as Mock).mockReturnValue({ id: 'user-1' });
   });
-  afterEach(() => vi.resetAllMocks());
+  afterEach(() => {
+    vi.resetAllMocks();
+    vi.restoreAllMocks();
+  });
 
   describe('document resource', () => {
     it('should create document with userId', async () => {

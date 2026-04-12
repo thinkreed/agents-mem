@@ -147,3 +147,21 @@ export function deleteMessage(id: string): boolean {
   
   return result.changes > 0;
 }
+
+/**
+ * Delete all messages for a conversation
+ */
+export function deleteMessagesByConversation(conversationId: string): number {
+  const db = getConnection();
+  
+  const result = db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
+  
+  return result.changes;
+}
+
+/**
+ * List messages by conversation (alias for getMessagesByConversation)
+ */
+export function listMessagesByConversation(conversationId: string): MessageRecord[] {
+  return getMessagesByConversation(conversationId);
+}

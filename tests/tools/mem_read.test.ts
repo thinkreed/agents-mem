@@ -1,8 +1,3 @@
-/**
- * @file tests/tools/mem_read.test.ts
- * @description TDD tests for mem_read CRUD tool - RED phase
- */
-
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 
 vi.mock('../../src/sqlite/documents', () => ({
@@ -59,6 +54,11 @@ vi.mock('../../src/materials/trace', () => ({
   traceFactToSource: vi.fn()
 }));
 
+vi.mock('../../src/embedder/ollama', () => ({
+  getEmbedding: vi.fn().mockResolvedValue(new Float32Array(768).fill(0.5))
+}));
+
+// Import mocked modules
 import { getDocumentById, searchDocuments } from '../../src/sqlite/documents';
 import { getAssetById } from '../../src/sqlite/assets';
 import { getConversationById, listConversations } from '../../src/sqlite/conversations';
@@ -70,12 +70,18 @@ import { ftsSearchDocuments } from '../../src/lance/fts_search';
 import { semanticSearchDocuments } from '../../src/lance/semantic_search';
 import { listMaterials } from '../../src/materials/filesystem';
 import { traceFactToSource } from '../../src/materials/trace';
+import { getEmbedding } from '../../src/embedder/ollama';
 
-const mockHandler = vi.fn();
-const getHandler = () => mockHandler;
+// Import the actual handler
+import { handleMemRead } from '../../src/tools/crud_handlers';
+
+const getHandler = () => handleMemRead;
 
 describe('mem_read tool', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getEmbedding as Mock).mockResolvedValue(new Float32Array(768).fill(0.5));
+  });
   afterEach(() => vi.resetAllMocks());
 
   describe('document resource - ID lookup', () => {
@@ -177,7 +183,10 @@ describe('mem_read tool', () => {
 
   describe('document resource - list', () => {
     it('should list documents', async () => {
-      (searchDocuments as Mock).mockReturnValue([{ id: 'doc-1' }, { id: 'doc-2' }]);
+      (searchDocuments as Mock).mockReturnValue([
+        { id: 'doc-1', user_id: 'user-1' },
+        { id: 'doc-2', user_id: 'user-1' }
+      ]);
       const result = await getHandler()({
         resource: 'document',
         query: { list: true },

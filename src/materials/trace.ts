@@ -52,3 +52,30 @@ export async function traceSource(sourceType: string, sourceId: string): Promise
     tiered: getTieredContentBySource(sourceType, sourceId)
   }));
 }
+
+/**
+ * Trace fact to source (alias for compatibility)
+ */
+export function traceFactToSource(factId: string): TraceResult {
+  const fact = getFactById(factId);
+  if (!fact) return {};
+  
+  const result: TraceResult = { fact };
+  
+  // Get source documents/assets
+  const sources = getFactsBySource(fact.source_type, fact.source_id);
+  
+  // Get tiered content
+  const tiered = getTieredContentBySource(fact.source_type, fact.source_id);
+  if (tiered) {
+    result.tiered = tiered;
+    result.uri = tiered.original_uri;
+  }
+  
+  // Get document if source is document
+  if (fact.source_type === 'documents') {
+    result.document = getDocumentById(fact.source_id);
+  }
+  
+  return result;
+}
