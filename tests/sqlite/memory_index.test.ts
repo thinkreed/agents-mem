@@ -96,6 +96,54 @@ describe('Memory Index Table', () => {
       
       expect(indexes.length).toBe(1);
     });
+
+    it('should get indexes by user with agent scope', () => {
+      createMemoryIndex({
+        uri: 'mem://user-1/agent-1/_/documents/doc-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        target_type: 'documents',
+        target_id: 'doc-agent',
+        title: 'Agent Doc'
+      });
+      
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-no-agent',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-no-agent',
+        title: 'No Agent Doc'
+      });
+      
+      const indexes = getMemoryIndexesByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(indexes.length).toBe(1);
+      expect(indexes[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get indexes by user with team scope', () => {
+      createMemoryIndex({
+        uri: 'mem://user-1/_/team-1/documents/doc-team',
+        user_id: 'user-1',
+        team_id: 'team-1',
+        target_type: 'documents',
+        target_id: 'doc-team',
+        title: 'Team Doc'
+      });
+      
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-no-team',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-no-team',
+        title: 'No Team Doc'
+      });
+      
+      const indexes = getMemoryIndexesByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(indexes.length).toBe(1);
+      expect(indexes[0].team_id).toBe('team-1');
+    });
   });
 
   describe('getMemoryIndexesByTarget', () => {
@@ -179,6 +227,56 @@ describe('Memory Index Table', () => {
       const results = searchMemoryIndex({ entity: 'person-A' });
       
       expect(results.length).toBe(1);
+    });
+
+    it('should search by category', () => {
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-cat',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-cat',
+        title: 'Category Doc',
+        category: 'technical'
+      });
+      
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-other',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-other',
+        title: 'Other Doc',
+        category: 'general'
+      });
+      
+      const results = searchMemoryIndex({ category: 'technical' });
+      
+      expect(results.length).toBe(1);
+      expect(results[0].category).toBe('technical');
+    });
+
+    it('should search by importance_min', () => {
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-high',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-high',
+        title: 'High Importance',
+        importance: 0.9
+      });
+      
+      createMemoryIndex({
+        uri: 'mem://user-1/_/_/documents/doc-low',
+        user_id: 'user-1',
+        target_type: 'documents',
+        target_id: 'doc-low',
+        title: 'Low Importance',
+        importance: 0.3
+      });
+      
+      const results = searchMemoryIndex({ importance_min: 0.5 });
+      
+      expect(results.length).toBe(1);
+      expect(results[0].importance).toBeGreaterThanOrEqual(0.5);
     });
   });
 });

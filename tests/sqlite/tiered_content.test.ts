@@ -148,5 +148,51 @@ describe('Tiered Content Table', () => {
       
       expect(tiereds.length).toBe(1);
     });
+
+    it('should get by agent scope', () => {
+      createTieredContent({
+        id: 'tiered-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        source_type: 'documents',
+        source_id: 'doc-agent',
+        abstract: 'Agent Abstract'
+      });
+      createTieredContent({
+        id: 'tiered-no-agent',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-no-agent',
+        abstract: 'No Agent Abstract'
+      });
+      
+      const tiereds = getTieredContentByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(tiereds.length).toBe(1);
+      expect(tiereds[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get by team scope', () => {
+      createTieredContent({
+        id: 'tiered-team',
+        user_id: 'user-1',
+        team_id: 'team-1',
+        source_type: 'documents',
+        source_id: 'doc-team',
+        abstract: 'Team Abstract'
+      });
+      createTieredContent({
+        id: 'tiered-no-team',
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-no-team',
+        abstract: 'No Team Abstract'
+      });
+      
+      const tiereds = getTieredContentByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(tiereds.length).toBe(1);
+      expect(tiereds[0].team_id).toBe('team-1');
+    });
   });
 });

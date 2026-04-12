@@ -1,46 +1,28 @@
 /**
  * @file tests/materials/filesystem.test.ts
- * @description File system operations for materials tests
+ * @description File system operations for materials tests using real SQLite
+ * 
+ * NOTE: We use real SQLite database for readMaterial tests to avoid cross-file mock pollution.
+ * listMaterials, getMaterialTree, grepMaterials are placeholders returning empty results.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   listMaterials,
   getMaterialTree,
   grepMaterials,
   readMaterial
 } from '../../src/materials/filesystem';
-
-// Mock sqlite/documents
-vi.mock('../../src/sqlite/documents', () => ({
-  getDocumentById: vi.fn()
-}));
-
-// Mock sqlite/assets
-vi.mock('../../src/sqlite/assets', () => ({
-  getAssetById: vi.fn()
-}));
-
-// Mock uri_resolver
-vi.mock('../../src/materials/uri_resolver', () => ({
-  resolveURI: vi.fn()
-}));
-
-// Import mocked modules after vi.mock
-import { getDocumentById } from '../../src/sqlite/documents';
-import { getAssetById } from '../../src/sqlite/assets';
-import { resolveURI } from '../../src/materials/uri_resolver';
-
-// Cast mocks for TypeScript
-const mockGetDocumentById = getDocumentById as ReturnType<typeof vi.fn>;
-const mockGetAssetById = getAssetById as ReturnType<typeof vi.fn>;
-const mockResolveURI = resolveURI as ReturnType<typeof vi.fn>;
+import { resetConnection, closeConnection, setDatabasePath } from '../../src/sqlite/connection';
+import { runMigrations, resetManager } from '../../src/sqlite/migrations';
+import { createUser } from '../../src/sqlite/users';
+import { createDocument, getDocumentById } from '../../src/sqlite/documents';
+import { createAsset, getAssetById } from '../../src/sqlite/assets';
+import { createMemoryIndex } from '../../src/sqlite/memory_index';
 
 describe('Filesystem Materials', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
+  // Placeholder function tests (no database needed)
   describe('listMaterials', () => {
     it('should return empty array (placeholder)', async () => {
       const scope = {
@@ -155,104 +137,82 @@ describe('Filesystem Materials', () => {
     });
   });
 
+  // readMaterial tests with real database
   describe('readMaterial', () => {
-    it('should return null for invalid URI', async () => {
-      mockResolveURI.mockReturnValue(null);
+    beforeEach(() => {
+      resetConnection();
+      resetManager();
+      setDatabasePath(':memory:');
+      runMigrations();
+      createUser({ id: 'user-1', name: 'Test User' });
+    });
 
+    afterEach(() => {
+      closeConnection();
+      resetManager();
+    });
+
+    it('should return null for invalid URI', async () => {
       const result = await readMaterial('invalid-uri');
 
       expect(result).toBeNull();
-      expect(mockResolveURI).toHaveBeenCalledWith('invalid-uri');
     });
 
     it('should return null for malformed URI', async () => {
-      mockResolveURI.mockReturnValue(null);
-
       const result = await readMaterial('not-a-mem-uri');
 
       expect(result).toBeNull();
     });
 
     it('should return content for valid document URI', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'documents',
-        id: 'doc-1'
-      });
-      mockGetDocumentById.mockReturnValue({
+      // Create a document
+      createDocument({
         id: 'doc-1',
         user_id: 'user-1',
-        is_global: false,
         doc_type: 'note',
         title: 'Test Document',
-        content: 'This is the document content',
-        created_at: 1000,
-        updated_at: 1000,
-        content_length: 27
+        content: 'This is the document content'
       });
 
       const result = await readMaterial('mem://user-1/_/_/documents/doc-1');
 
       expect(result).toBe('This is the document content');
-      expect(mockGetDocumentById).toHaveBeenCalledWith('doc-1');
     });
 
     it('should return null for missing document', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'documents',
-        id: 'missing-doc'
-      });
-      mockGetDocumentById.mockReturnValue(undefined);
-
       const result = await readMaterial('mem://user-1/_/_/documents/missing-doc');
 
       expect(result).toBeNull();
     });
 
     it('should return content for valid asset URI', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'assets',
-        id: 'asset-1'
-      });
-      mockGetAssetById.mockReturnValue({
+      // Create an asset with extracted text
+      createAsset({
         id: 'asset-1',
         user_id: 'user-1',
-        is_global: false,
         filename: 'test.pdf',
         file_type: 'pdf',
         file_size: 1024,
         storage_path: '/path/to/asset',
         extracted_text: 'Extracted text from asset',
-        text_extracted: true,
-        created_at: 1000,
-        updated_at: 1000
+        text_extracted: true
       });
 
       const result = await readMaterial('mem://user-1/_/_/assets/asset-1');
 
       expect(result).toBe('Extracted text from asset');
-      expect(mockGetAssetById).toHaveBeenCalledWith('asset-1');
     });
 
     it('should return null for asset without extracted text', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'assets',
-        id: 'asset-2'
-      });
-      mockGetAssetById.mockReturnValue({
+      // Create an asset without extracted text
+      createAsset({
         id: 'asset-2',
         user_id: 'user-1',
-        is_global: false,
         filename: 'image.png',
         file_type: 'png',
         file_size: 512,
         storage_path: '/path/to/image',
-        text_extracted: false,
-        created_at: 1000,
-        updated_at: 1000
+        text_extracted: false
       });
 
       const result = await readMaterial('mem://user-1/_/_/assets/asset-2');
@@ -261,148 +221,54 @@ describe('Filesystem Materials', () => {
     });
 
     it('should return null for missing asset', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'assets',
-        id: 'missing-asset'
-      });
-      mockGetAssetById.mockReturnValue(undefined);
-
       const result = await readMaterial('mem://user-1/_/_/assets/missing-asset');
 
       expect(result).toBeNull();
     });
 
     it('should return null for unknown type', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'unknown',
-        id: 'item-1'
-      });
-
       const result = await readMaterial('mem://user-1/_/_/unknown/item-1');
 
       expect(result).toBeNull();
-      expect(mockGetDocumentById).not.toHaveBeenCalled();
-      expect(mockGetAssetById).not.toHaveBeenCalled();
     });
 
     it('should return null for facts type', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'facts',
-        id: 'fact-1'
-      });
-
       const result = await readMaterial('mem://user-1/_/_/facts/fact-1');
 
       expect(result).toBeNull();
     });
 
     it('should return null for tiered type', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'tiered',
-        id: 'tiered-1'
-      });
-
       const result = await readMaterial('mem://user-1/_/_/tiered/tiered-1');
 
       expect(result).toBeNull();
     });
 
     it('should return null for messages type', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'messages',
-        id: 'msg-1'
-      });
-
       const result = await readMaterial('mem://user-1/_/_/messages/msg-1');
 
       expect(result).toBeNull();
     });
 
     it('should return null for conversations type', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'conversations',
-        id: 'conv-1'
-      });
-
       const result = await readMaterial('mem://user-1/_/_/conversations/conv-1');
 
       expect(result).toBeNull();
     });
 
     it('should handle empty document content', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'documents',
-        id: 'doc-empty'
-      });
-      mockGetDocumentById.mockReturnValue({
+      // Create a document with empty content
+      createDocument({
         id: 'doc-empty',
         user_id: 'user-1',
-        is_global: false,
         doc_type: 'note',
         title: 'Empty Doc',
-        content: '',
-        created_at: 1000,
-        updated_at: 1000,
-        content_length: 0
+        content: ''
       });
 
       const result = await readMaterial('mem://user-1/_/_/documents/doc-empty');
 
       expect(result).toBe('');
-    });
-
-    it('should not call document getter when URI resolves to asset', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'assets',
-        id: 'asset-1'
-      });
-      mockGetAssetById.mockReturnValue({
-        id: 'asset-1',
-        user_id: 'user-1',
-        is_global: false,
-        filename: 'test.pdf',
-        file_type: 'pdf',
-        file_size: 1024,
-        storage_path: '/path',
-        text_extracted: true,
-        created_at: 1000,
-        updated_at: 1000
-      });
-
-      await readMaterial('mem://user-1/_/_/assets/asset-1');
-
-      expect(mockGetDocumentById).not.toHaveBeenCalled();
-    });
-
-    it('should not call asset getter when URI resolves to document', async () => {
-      mockResolveURI.mockReturnValue({
-        userId: 'user-1',
-        type: 'documents',
-        id: 'doc-1'
-      });
-      mockGetDocumentById.mockReturnValue({
-        id: 'doc-1',
-        user_id: 'user-1',
-        is_global: false,
-        doc_type: 'note',
-        title: 'Doc',
-        content: 'content',
-        created_at: 1000,
-        updated_at: 1000,
-        content_length: 7
-      });
-
-      await readMaterial('mem://user-1/_/_/documents/doc-1');
-
-      expect(mockGetAssetById).not.toHaveBeenCalled();
     });
   });
 });

@@ -84,6 +84,45 @@ describe('Conversations Table', () => {
       
       expect(convs.length).toBe(1);
     });
+
+    it('should get conversations by user with agent scope', () => {
+      createConversation({
+        id: 'conv-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1'
+      });
+      
+      createConversation({
+        id: 'conv-no-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-2'
+      });
+      
+      const convs = getConversationsByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(convs.length).toBe(1);
+      expect(convs[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get conversations by user with team scope', () => {
+      createConversation({
+        id: 'conv-team',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        team_id: 'team-1'
+      });
+      
+      createConversation({
+        id: 'conv-no-team',
+        user_id: 'user-1',
+        agent_id: 'agent-2'
+      });
+      
+      const convs = getConversationsByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(convs.length).toBe(1);
+      expect(convs[0].team_id).toBe('team-1');
+    });
   });
 
   describe('updateConversation', () => {

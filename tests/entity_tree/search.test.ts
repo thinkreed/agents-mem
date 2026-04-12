@@ -93,6 +93,48 @@ describe('Entity Tree Search', () => {
 
       expect(result).toBe('root-1');
     });
+
+    it('should fold into parent when similarity meets threshold', async () => {
+      createEntityNode({
+        id: 'root-1',
+        user_id: 'user-1',
+        entity_name: 'Root',
+        depth: 0
+      });
+      createEntityNode({
+        id: 'child-1',
+        user_id: 'user-1',
+        parent_id: 'root-1',
+        entity_name: 'Child',
+        depth: 1
+      });
+
+      // High similarity should fold child into parent
+      const result = await foldTree('child-1', 0.99);
+
+      expect(result).toBe('root-1');
+    });
+
+    it('should not fold when similarity below threshold', async () => {
+      createEntityNode({
+        id: 'root-1',
+        user_id: 'user-1',
+        entity_name: 'Root',
+        depth: 0
+      });
+      createEntityNode({
+        id: 'child-1',
+        user_id: 'user-1',
+        parent_id: 'root-1',
+        entity_name: 'Child',
+        depth: 1
+      });
+
+      // Low similarity should not fold
+      const result = await foldTree('child-1', 0.1);
+
+      expect(result).toBe('child-1');
+    });
   });
 
   describe('getTreePath', () => {

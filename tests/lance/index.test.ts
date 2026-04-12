@@ -51,6 +51,27 @@ describe('LanceDB Index', () => {
       expect(stats).toBeDefined();
       expect(stats.rowCount).toBe(0);
     });
+
+    it('should create index when enough rows (256+)', async () => {
+      // Add 256 documents to trigger index creation path
+      const vector = new Float32Array(768).fill(0.1);
+      for (let i = 0; i < 256; i++) {
+        await addDocumentVector({
+          id: `doc-${i}`,
+          content: `Test content ${i}`,
+          vector: vector,
+          user_id: 'user-1',
+          title: `Test ${i}`
+        });
+      }
+
+      // Should now create index (256 rows)
+      await createVectorIndex('documents_vec');
+
+      const stats = await getIndexStats('documents_vec');
+      expect(stats.rowCount).toBe(256);
+      expect(stats.hasVectorIndex).toBe(true); // Has enough rows for index
+    });
   });
 
   describe('createFTSIndex', () => {

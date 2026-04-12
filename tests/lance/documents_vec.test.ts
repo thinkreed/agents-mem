@@ -145,6 +145,60 @@ describe('Documents Vector Table', () => {
       
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it('should search with agent scope', async () => {
+      const vector = new Float32Array(768).fill(0.5);
+      
+      await addDocumentVector({
+        id: 'doc-agent',
+        content: 'Agent document',
+        vector: vector,
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        title: 'Agent Doc'
+      });
+      
+      await addDocumentVector({
+        id: 'doc-no-agent',
+        content: 'No agent document',
+        vector: vector,
+        user_id: 'user-1',
+        title: 'No Agent Doc'
+      });
+      
+      const queryVector = new Float32Array(768).fill(0.5);
+      const results = await searchDocumentVectors(queryVector, 10, { userId: 'user-1', agentId: 'agent-1' });
+      
+      // Should return results filtered by agent scope
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    it('should search with team scope', async () => {
+      const vector = new Float32Array(768).fill(0.5);
+      
+      await addDocumentVector({
+        id: 'doc-team',
+        content: 'Team document',
+        vector: vector,
+        user_id: 'user-1',
+        team_id: 'team-1',
+        title: 'Team Doc'
+      });
+      
+      await addDocumentVector({
+        id: 'doc-no-team',
+        content: 'No team document',
+        vector: vector,
+        user_id: 'user-1',
+        title: 'No Team Doc'
+      });
+      
+      const queryVector = new Float32Array(768).fill(0.5);
+      const results = await searchDocumentVectors(queryVector, 10, { userId: 'user-1', teamId: 'team-1' });
+      
+      // Should return results filtered by team scope
+      expect(results.length).toBeGreaterThan(0);
+    });
   });
 
   describe('updateDocumentVector', () => {

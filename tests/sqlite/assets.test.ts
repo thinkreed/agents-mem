@@ -96,6 +96,58 @@ describe('Assets Table', () => {
       
       expect(assets.length).toBe(1);
     });
+
+    it('should get assets by user with agent scope', () => {
+      createAsset({
+        id: 'asset-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        filename: 'agent-scope.pdf',
+        file_type: 'pdf',
+        file_size: 256,
+        storage_path: '/storage/agent-scope.pdf'
+      });
+      
+      createAsset({
+        id: 'asset-no-agent',
+        user_id: 'user-1',
+        filename: 'no-agent.pdf',
+        file_type: 'pdf',
+        file_size: 256,
+        storage_path: '/storage/no-agent.pdf'
+      });
+      
+      const assets = getAssetsByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(assets.length).toBe(1);
+      expect(assets[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get assets by user with team scope', () => {
+      createAsset({
+        id: 'asset-team',
+        user_id: 'user-1',
+        team_id: 'team-1',
+        filename: 'team-scope.pdf',
+        file_type: 'pdf',
+        file_size: 256,
+        storage_path: '/storage/team-scope.pdf'
+      });
+      
+      createAsset({
+        id: 'asset-no-team',
+        user_id: 'user-1',
+        filename: 'no-team.pdf',
+        file_type: 'pdf',
+        file_size: 256,
+        storage_path: '/storage/no-team.pdf'
+      });
+      
+      const assets = getAssetsByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(assets.length).toBe(1);
+      expect(assets[0].team_id).toBe('team-1');
+    });
   });
 
   describe('updateAsset', () => {
@@ -116,6 +168,52 @@ describe('Assets Table', () => {
       
       expect(updated?.title).toBe('Updated Title');
       expect(updated?.text_extracted).toBe(1);
+    });
+
+    it('should update asset with extracted_text and infer text_extracted', () => {
+      createAsset({
+        id: 'asset-text',
+        user_id: 'user-1',
+        filename: 'text.pdf',
+        file_type: 'pdf',
+        file_size: 256,
+        storage_path: '/storage/text.pdf',
+        text_extracted: false
+      });
+      
+      // When extracted_text is provided, text_extracted should be inferred as true
+      const updated = updateAsset('asset-text', {
+        extracted_text: 'Extracted content here'
+      });
+      
+      expect(updated?.extracted_text).toBe('Extracted content here');
+      expect(updated?.text_extracted).toBeTruthy(); // inferred true from extracted_text
+    });
+
+    it('should update multiple fields', () => {
+      createAsset({
+        id: 'asset-multi',
+        user_id: 'user-1',
+        filename: 'multi.pdf',
+        file_type: 'pdf',
+        file_size: 512,
+        storage_path: '/storage/multi.pdf',
+        title: 'Original Title',
+        description: 'Original Description',
+        metadata: '{"original": true}'
+      });
+      
+      const updated = updateAsset('asset-multi', {
+        title: 'New Title',
+        description: 'New Description',
+        metadata: '{"updated": true}',
+        lance_id: 'lance-123'
+      });
+      
+      expect(updated?.title).toBe('New Title');
+      expect(updated?.description).toBe('New Description');
+      expect(updated?.metadata).toBe('{"updated": true}');
+      expect(updated?.lance_id).toBe('lance-123');
     });
   });
 

@@ -182,6 +182,42 @@ describe('SQLite Migrations', () => {
       // Rollback might not be fully supported, but function should exist
       expect(rollbackMigration).toBeDefined();
     });
+
+    it('should throw error when rollback with no migrations', () => {
+      resetConnection();
+      resetManager();
+      
+      // Fresh database - no migrations applied
+      expect(() => rollbackMigration()).toThrow('No migrations to rollback');
+    });
+
+    it('should throw error when rollback is attempted', () => {
+      resetConnection();
+      runMigrations();
+      
+      // Rollback is not supported in this implementation
+      expect(() => rollbackMigration()).toThrow('Rollback not supported');
+    });
+
+    it('should validate schema when all tables exist', () => {
+      resetConnection();
+      runMigrations();
+      
+      const manager = new MigrationManager(getConnection());
+      const isValid = manager.validateSchema();
+      
+      expect(isValid).toBe(true);
+    });
+
+    it('should validate schema returns false when table missing', () => {
+      resetConnection();
+      const manager = new MigrationManager(getConnection());
+      
+      // Fresh database without migrations - tables don't exist
+      const isValid = manager.validateSchema();
+      
+      expect(isValid).toBe(false);
+    });
   });
 
   describe('Migration History', () => {

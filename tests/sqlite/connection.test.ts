@@ -215,4 +215,44 @@ describe('SQLite Connection', () => {
       expect(() => db.run('INSERT INTO test VALUES ("1")')).toThrow();
     });
   });
+
+  describe('Raw Database Access', () => {
+    it('should get raw database instance', () => {
+      const db = new DatabaseConnection(testDbPath);
+      
+      const raw = db.getRaw();
+      expect(raw).toBeDefined();
+      
+      // Raw database should be usable
+      raw.run('CREATE TABLE raw_test (id TEXT PRIMARY KEY)');
+      raw.run('INSERT INTO raw_test VALUES ("1")');
+      
+      interface RawRow { id: string }
+      const stmt = raw.prepare('SELECT * FROM raw_test');
+      const result = stmt.all() as RawRow[];
+      expect(result).toHaveLength(1);
+      
+      db.close();
+    });
+
+    it('should clear statement cache', () => {
+      const db = new DatabaseConnection(testDbPath);
+      
+      db.exec('CREATE TABLE cache_test (id TEXT PRIMARY KEY)');
+      db.exec('INSERT INTO cache_test VALUES ("1")');
+      
+      // Execute same query multiple times to populate cache
+      db.query('SELECT * FROM cache_test');
+      db.query('SELECT * FROM cache_test');
+      
+      // Clear cache
+      db.clearCache();
+      
+      // Should still work after cache clear
+      const result = db.query('SELECT * FROM cache_test');
+      expect(result).toHaveLength(1);
+      
+      db.close();
+    });
+  });
 });

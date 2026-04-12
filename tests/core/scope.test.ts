@@ -287,5 +287,68 @@ describe('Scope Utilities', () => {
       
       expect(where).toContain('is_global');
     });
+
+    it('should generate LanceDB filter expression', () => {
+      const filter = ScopeFilter.fromScope({
+        userId: 'user123'
+      });
+      
+      const lanceFilter = filter.toLanceFilter();
+      
+      expect(lanceFilter).toContain('user_id == "user123"');
+    });
+
+    it('should include agent in LanceDB filter', () => {
+      const filter = ScopeFilter.fromScope({
+        userId: 'user123',
+        agentId: 'agent1'
+      });
+      
+      const lanceFilter = filter.toLanceFilter();
+      
+      expect(lanceFilter).toContain('user_id == "user123"');
+      expect(lanceFilter).toContain('agent_id == "agent1"');
+    });
+
+    it('should include team in LanceDB filter', () => {
+      const filter = ScopeFilter.fromScope({
+        userId: 'user123',
+        teamId: 'team1'
+      });
+      
+      const lanceFilter = filter.toLanceFilter();
+      
+      expect(lanceFilter).toContain('user_id == "user123"');
+      expect(lanceFilter).toContain('team_id == "team1"');
+    });
+
+    it('should include global in LanceDB filter', () => {
+      const filter = ScopeFilter.fromScope({
+        userId: 'user123',
+        isGlobal: true
+      });
+      
+      const lanceFilter = filter.toLanceFilter();
+      
+      expect(lanceFilter).toContain('user_id == "user123"');
+      expect(lanceFilter).toContain('is_global == true');
+    });
+
+    it('should include all conditions in LanceDB filter', () => {
+      const filter = ScopeFilter.fromScope({
+        userId: 'user123',
+        agentId: 'agent1',
+        teamId: 'team1',
+        isGlobal: true
+      });
+      
+      const lanceFilter = filter.toLanceFilter();
+      
+      expect(lanceFilter).toContain('user_id == "user123"');
+      expect(lanceFilter).toContain('agent_id == "agent1"');
+      expect(lanceFilter).toContain('team_id == "team1"');
+      expect(lanceFilter).toContain('is_global == true');
+      expect(lanceFilter).toContain('&&');
+    });
   });
 });

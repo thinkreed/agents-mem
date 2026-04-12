@@ -1,11 +1,13 @@
 /**
  * @file src/facts/extractor.ts
- * @description Fact extraction from content
+ * @description Fact extraction from content with LLM support
  */
 
 import { createFact, FactInput } from '../sqlite/facts';
 import { createExtractionStatus, updateExtractionStatus } from '../sqlite/extraction_status';
 import { generateUUID } from '../utils/uuid';
+import { createLLMClient } from '../llm/ollama';
+import { buildFactExtractionPrompt } from '../llm/prompts';
 
 /**
  * Extracted fact
@@ -18,19 +20,78 @@ export interface ExtractedFact {
 }
 
 /**
- * Fact extractor
+ * Valid fact types
+ */
+const VALID_FACT_TYPES = ['preference', 'decision', 'observation', 'conclusion'];
+
+/**
+ * Fact extractor with LLM support
  */
 export class FactExtractor {
   /**
-   * Extract facts from content
-   * Note: In production, this would call LLM
+   * Extract facts from content using LLM
    */
   async extract(content: string): Promise<ExtractedFact[]> {
-    // Placeholder implementation
-    // Returns empty array - real implementation would call LLM
-    return [];
+    // Handle empty/whitespace content
+    if (!content || content.trim() === '') {
+      return [];
+    }
+
+    try {
+      const llmClient = createLLMClient();
+      const prompt = buildFactExtractionPrompt(content);
+
+      const facts = await llmClient.generateJSON<ExtractedFact[]>(prompt, []);
+
+      // Validate and filter facts
+      return this.validateFacts(facts);
+    } catch {
+      // Return empty array on failure
+      return [];
+    }
   }
-  
+
+  /**
+   * Validate extracted facts
+   */
+  private validateFacts(facts: unknown[]): ExtractedFact[] {
+    if (!Array.isArray(facts)) {
+      return [];
+    }
+
+    return facts.filter((fact): fact is ExtractedFact => {
+      if (!fact || typeof fact !== 'object') {
+        return false;
+      }
+
+      const f = fact as Record<string, unknown>;
+
+      // Check required fields
+      if (typeof f.content !== 'string' || !f.content.trim()) {
+        return false;
+      }
+
+      if (!VALID_FACT_TYPES.includes(f.factType as string)) {
+        return false;
+      }
+
+      if (!Array.isArray(f.entities)) {
+        return false;
+      }
+
+      if (typeof f.confidence !== 'number' || f.confidence < 0 || f.confidence > 1) {
+        return false;
+      }
+
+      return true;
+    }).map(f => ({
+      content: String(f.content).trim(),
+      factType: String(f.factType),
+      entities: (f.entities as string[]).map(String),
+      confidence: Number(f.confidence)
+    }));
+  }
+
   /**
    * Extract and save facts
    */
@@ -45,10 +106,10 @@ export class FactExtractor {
       target_id: input.sourceId,
       extraction_mode: 'on_demand'
     });
-    
+
     const facts = await this.extract(input.content);
     const factIds: string[] = [];
-    
+
     for (const fact of facts) {
       const id = generateUUID();
       createFact({
@@ -63,12 +124,12 @@ export class FactExtractor {
       });
       factIds.push(id);
     }
-    
+
     updateExtractionStatus(status.id, {
       status: 'completed',
       facts_count: facts.length
     });
-    
+
     return factIds;
   }
 }
@@ -86,4 +147,11 @@ export function getFactExtractor(): FactExtractor {
     extractorInstance = new FactExtractor();
   }
   return extractorInstance;
+}
+
+/**
+ * Reset extractor (for testing)
+ */
+export function resetFactExtractor(): void {
+  extractorInstance = null;
 }

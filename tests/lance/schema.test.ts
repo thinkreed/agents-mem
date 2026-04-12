@@ -161,8 +161,26 @@ describe('LanceDB Schema', () => {
   });
 
   describe('getSchemaForTable', () => {
-    it('should return schema for valid table name', () => {
+    it('should return schema for documents', () => {
       const schema = getSchemaForTable('documents');
+      expect(schema).toBeDefined();
+      expect(schema).toBeInstanceOf(Schema);
+    });
+
+    it('should return schema for messages', () => {
+      const schema = getSchemaForTable('messages');
+      expect(schema).toBeDefined();
+      expect(schema).toBeInstanceOf(Schema);
+    });
+
+    it('should return schema for facts', () => {
+      const schema = getSchemaForTable('facts');
+      expect(schema).toBeDefined();
+      expect(schema).toBeInstanceOf(Schema);
+    });
+
+    it('should return schema for tiered', () => {
+      const schema = getSchemaForTable('tiered');
       expect(schema).toBeDefined();
       expect(schema).toBeInstanceOf(Schema);
     });

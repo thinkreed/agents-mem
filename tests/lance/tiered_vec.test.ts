@@ -148,6 +148,56 @@ describe('Tiered Vector Table', () => {
       
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it('should search with scope filter', async () => {
+      const vector = new Float32Array(768).fill(0.5);
+      
+      await addTieredVector({
+        id: 'tiered-scope',
+        content: 'Scope test',
+        vector: vector,
+        tier: 0,
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-scope'
+      });
+      
+      const queryVector = new Float32Array(768).fill(0.5);
+      const results = await searchTieredVectors(queryVector, 10, { userId: 'user-1' });
+      
+      expect(results).toBeDefined();
+    });
+
+    it('should search with tier filter', async () => {
+      const vector0 = new Float32Array(768).fill(0.5);
+      const vector1 = new Float32Array(768).fill(0.6);
+      
+      await addTieredVector({
+        id: 'tiered-tier0',
+        content: 'Tier 0 content',
+        vector: vector0,
+        tier: 0,
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-t0'
+      });
+      
+      await addTieredVector({
+        id: 'tiered-tier1',
+        content: 'Tier 1 content',
+        vector: vector1,
+        tier: 1,
+        user_id: 'user-1',
+        source_type: 'documents',
+        source_id: 'doc-t1'
+      });
+      
+      const queryVector = new Float32Array(768).fill(0.55);
+      const results = await searchTieredVectors(queryVector, 10, undefined, 0);
+      
+      // All results should be tier 0
+      expect(results.every(r => r.tier === 0)).toBe(true);
+    });
   });
 
   describe('getTieredVectorsByTier', () => {

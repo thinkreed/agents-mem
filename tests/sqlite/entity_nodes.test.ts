@@ -139,6 +139,50 @@ describe('Entity Nodes Table', () => {
       
       expect(nodes.length).toBe(1);
     });
+
+    it('should get nodes by user with agent scope', () => {
+      createEntityNode({
+        id: 'node-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        entity_name: 'Agent Node',
+        depth: 0
+      });
+      
+      createEntityNode({
+        id: 'node-no-agent',
+        user_id: 'user-1',
+        entity_name: 'No Agent Node',
+        depth: 0
+      });
+      
+      const nodes = getEntityNodesByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(nodes.length).toBe(1);
+      expect(nodes[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get nodes by user with team scope', () => {
+      createEntityNode({
+        id: 'node-team',
+        user_id: 'user-1',
+        team_id: 'team-1',
+        entity_name: 'Team Node',
+        depth: 0
+      });
+      
+      createEntityNode({
+        id: 'node-no-team',
+        user_id: 'user-1',
+        entity_name: 'No Team Node',
+        depth: 0
+      });
+      
+      const nodes = getEntityNodesByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(nodes.length).toBe(1);
+      expect(nodes[0].team_id).toBe('team-1');
+    });
   });
 
   describe('getRootNodes', () => {

@@ -3,11 +3,12 @@
  * @description Fact extractor tests (TDD)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   FactExtractor,
   ExtractedFact,
-  getFactExtractor
+  getFactExtractor,
+  resetFactExtractor
 } from '../../src/facts/extractor';
 import {
   getFactsBySource
@@ -22,22 +23,41 @@ import {
   setDatabasePath
 } from '../../src/sqlite/connection';
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
+import { resetLLMClient } from '../../src/llm/ollama';
 
 describe('FactExtractor', () => {
+  let originalFetch: typeof fetch;
+
   beforeEach(() => {
     // Reset SQLite connection
     resetConnection();
     resetManager();
+    resetLLMClient();
+    resetFactExtractor();
     setDatabasePath(':memory:');
     runMigrations();
-    
+
     // Create test user
     createUser({ id: 'user-1', name: 'Test User' });
+
+    // Mock fetch to simulate LLM failure (returns empty array fallback)
+    // Use low retry count and delay to avoid test timeouts
+    originalFetch = global.fetch;
+    global.fetch = vi.fn(async () => {
+      return {
+        ok: true,
+        json: async () => ({ response: '[]' })  // Return empty JSON array
+      } as Response;
+    });
   });
 
   afterEach(() => {
     closeConnection();
     resetManager();
+    resetLLMClient();
+    resetFactExtractor();
+    global.fetch = originalFetch;
+    vi.clearAllMocks();
   });
 
   describe('FactExtractor class', () => {
@@ -384,6 +404,181 @@ describe('FactExtractor', () => {
       // Subsequent calls should return the same instance
       const extractor2 = getFactExtractor();
       expect(extractor2).toBe(extractor1);
+    });
+  });
+
+  describe('LLM extraction with validateFacts', () => {
+    it('should call LLM and validate facts', async () => {
+      // Mock LLM to return valid facts
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'User prefers dark mode', factType: 'preference', entities: ['user', 'theme'], confidence: 0.9 },
+              { content: 'User works on project X', factType: 'observation', entities: ['user', 'project'], confidence: 0.8 }
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('User prefers dark mode and works on project X');
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(2);
+      expect(result[0].content).toBe('User prefers dark mode');
+      expect(result[0].factType).toBe('preference');
+      expect(result[0].confidence).toBe(0.9);
+    });
+
+    it('should filter invalid factType', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
+              { content: 'Invalid fact', factType: 'invalid_type', entities: [], confidence: 0.5 }
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result.length).toBe(1);
+      expect(result[0].factType).toBe('preference');
+    });
+
+    it('should filter invalid confidence range', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'Valid confidence', factType: 'observation', entities: [], confidence: 0.5 },
+              { content: 'Invalid confidence too high', factType: 'observation', entities: [], confidence: 1.5 },
+              { content: 'Invalid confidence negative', factType: 'observation', entities: [], confidence: -0.1 }
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result.length).toBe(1);
+      expect(result[0].confidence).toBe(0.5);
+    });
+
+    it('should filter missing required fields', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'Complete fact', factType: 'decision', entities: ['entity'], confidence: 0.7 },
+              { factType: 'decision', entities: [], confidence: 0.7 },  // missing content
+              { content: '', factType: 'decision', entities: [], confidence: 0.7 },  // empty content
+              { content: 'No entities', factType: 'decision', confidence: 0.7 },  // missing entities
+              { content: 'No type', entities: [], confidence: 0.7 }  // missing factType
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result.length).toBe(1);
+      expect(result[0].content).toBe('Complete fact');
+    });
+
+    it('should filter non-array response', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({ response: 'not an array' })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result.length).toBe(0);
+    });
+
+    it('should filter null/undefined facts in array', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
+              null,
+              undefined,
+              'string not object',
+              123
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result.length).toBe(1);
+    });
+
+    it('should trim content strings', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: '  Trimmed content  ', factType: 'preference', entities: [], confidence: 0.5 }
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result[0].content).toBe('Trimmed content');
+    });
+
+    it('should convert entities to strings', async () => {
+      global.fetch = vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify([
+              { content: 'Fact', factType: 'conclusion', entities: ['entity1', 'entity2'], confidence: 0.8 }
+            ])
+          })
+        } as Response;
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result[0].entities).toEqual(['entity1', 'entity2']);
+    });
+
+    it('should return empty array on LLM fetch failure', async () => {
+      // Mock LLM to return error
+      global.fetch = vi.fn(async () => {
+        throw new Error('Network error');
+      });
+
+      const extractor = new FactExtractor();
+      const result = await extractor.extract('content');
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(0);
     });
   });
 

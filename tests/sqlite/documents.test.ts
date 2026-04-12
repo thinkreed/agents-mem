@@ -107,6 +107,54 @@ describe('Documents Table', () => {
       
       expect(docs.length).toBe(1);
     });
+
+    it('should get documents by user with agent scope', () => {
+      createDocument({
+        id: 'doc-agent',
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        doc_type: 'article',
+        title: 'Agent Doc',
+        content: 'Agent content'
+      });
+      
+      createDocument({
+        id: 'doc-no-agent',
+        user_id: 'user-1',
+        doc_type: 'article',
+        title: 'No Agent Doc',
+        content: 'No agent content'
+      });
+      
+      const docs = getDocumentsByScope({ userId: 'user-1', agentId: 'agent-1' });
+      
+      expect(docs.length).toBe(1);
+      expect(docs[0].agent_id).toBe('agent-1');
+    });
+
+    it('should get documents by user with team scope', () => {
+      createDocument({
+        id: 'doc-team',
+        user_id: 'user-1',
+        team_id: 'team-1',
+        doc_type: 'article',
+        title: 'Team Doc',
+        content: 'Team content'
+      });
+      
+      createDocument({
+        id: 'doc-no-team',
+        user_id: 'user-1',
+        doc_type: 'article',
+        title: 'No Team Doc',
+        content: 'No team content'
+      });
+      
+      const docs = getDocumentsByScope({ userId: 'user-1', teamId: 'team-1' });
+      
+      expect(docs.length).toBe(1);
+      expect(docs[0].team_id).toBe('team-1');
+    });
   });
 
   describe('updateDocument', () => {
@@ -167,6 +215,28 @@ describe('Documents Table', () => {
       
       expect(docs.length).toBe(1);
       expect(docs[0].doc_type).toBe('article');
+    });
+
+    it('should search by title_contains', () => {
+      createDocument({
+        id: 'doc-title-1',
+        user_id: 'user-1',
+        doc_type: 'article',
+        title: 'Introduction to TypeScript',
+        content: 'Content'
+      });
+      createDocument({
+        id: 'doc-title-2',
+        user_id: 'user-1',
+        doc_type: 'article',
+        title: 'Python Guide',
+        content: 'Content'
+      });
+      
+      const docs = searchDocuments({ title_contains: 'TypeScript' });
+      
+      expect(docs.length).toBe(1);
+      expect(docs[0].title).toContain('TypeScript');
     });
   });
 });

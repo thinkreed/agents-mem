@@ -104,6 +104,28 @@ describe('Semantic Search', () => {
       
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it('should search documents with agent scope', async () => {
+      // Add document with agent scope
+      const vector = new Float32Array(768).fill(0.15);
+      await addDocumentVector({
+        id: 'doc-agent',
+        content: 'Agent document',
+        vector: vector,
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        title: 'Agent Doc'
+      });
+      
+      const queryVector = new Float32Array(768).fill(0.15);
+      const results = await semanticSearchDocuments({
+        queryVector: queryVector,
+        limit: 5,
+        scope: { userId: 'user-1', agentId: 'agent-1' }
+      });
+      
+      expect(results).toBeDefined();
+    });
   });
 
   describe('semanticSearchMessages', () => {
