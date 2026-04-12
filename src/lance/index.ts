@@ -3,6 +3,7 @@
  * @description LanceDB index management
  */
 
+import { Index } from '@lancedb/lancedb';
 import { getTable, listTables } from './connection';
 import { getVectorFieldName } from './schema';
 
@@ -37,7 +38,9 @@ export async function createVectorIndex(tableName: string): Promise<void> {
   
   // Create vector index with proper options
   await table.createIndex(getVectorFieldName(), {
-    config: { num_partitions: Math.min(Math.ceil(rowCount / 256), 256) }
+    config: Index.ivfPq({
+      numPartitions: Math.min(Math.ceil(rowCount / 256), 256)
+    })
   });
 }
 

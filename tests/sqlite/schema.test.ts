@@ -113,7 +113,8 @@ describe('SQLite Schema', () => {
     });
 
     it('should throw for unknown table', () => {
-      expect(() => getCreateTableSQL('unknown_table')).toThrow();
+      // Cast to bypass type check - testing runtime behavior
+      expect(() => getCreateTableSQL('unknown_table' as 'users')).toThrow();
     });
   });
 

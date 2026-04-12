@@ -6,6 +6,7 @@
 import { Database } from 'bun:sqlite';
 import { getSQLitePath, ensureDir } from '../utils/file';
 import { SQLITE_WAL_MODE } from '../core/constants';
+import * as path from 'path';
 
 /**
  * Default database path
@@ -33,19 +34,19 @@ export class DatabaseConnection {
   private open: boolean = true;
   private stmtCache: Map<string, ReturnType<Database['prepare']>> = new Map();
   
-  constructor(path: string = ':memory:') {
+  constructor(dbPath: string = ':memory:') {
     // Ensure directory exists for file-based databases
-    if (path !== ':memory:') {
-      const dir = path.substring(0, path.lastIndexOf('/'));
+    if (dbPath !== ':memory:') {
+      const dir = path.dirname(dbPath);
       if (dir) {
         ensureDir(dir);
       }
     }
     
-    this.db = new Database(path);
+    this.db = new Database(dbPath);
     
     // Enable WAL mode if configured
-    if (SQLITE_WAL_MODE && path !== ':memory:') {
+    if (SQLITE_WAL_MODE && dbPath !== ':memory:') {
       this.db.run('PRAGMA journal_mode = WAL');
     }
     
@@ -68,13 +69,15 @@ export class DatabaseConnection {
     this.db.run(sql);
   }
   
-  /**
-   * Run SQL with parameters
-   */
+/**
+ * Run SQL with parameters
+ */
   run(sql: string, params?: unknown[]): ReturnType<Database['run']> {
     if (!this.open) throw new Error('Database is closed');
     const stmt = this.prepareCached(sql);
-    return stmt.run(...(params ?? []));
+    // Bun SQLite accepts various parameter types - cast to bypass complex union type
+    type SQLiteParam = string | number | bigint | boolean | null | Uint8Array;
+    return stmt.run(...((params ?? []) as SQLiteParam[]));
   }
   
   /**
@@ -83,7 +86,8 @@ export class DatabaseConnection {
   query<T = unknown>(sql: string, params?: unknown[]): T[] {
     if (!this.open) throw new Error('Database is closed');
     const stmt = this.prepareCached(sql);
-    return stmt.all(...(params ?? [])) as T[];
+    type SQLiteParam = string | number | bigint | boolean | null | Uint8Array;
+    return stmt.all(...((params ?? []) as SQLiteParam[])) as T[];
   }
   
   /**
@@ -92,7 +96,8 @@ export class DatabaseConnection {
   queryOne<T = unknown>(sql: string, params?: unknown[]): T | undefined {
     if (!this.open) throw new Error('Database is closed');
     const stmt = this.prepareCached(sql);
-    return stmt.get(...(params ?? [])) as T | undefined;
+    type SQLiteParam = string | number | bigint | boolean | null | Uint8Array;
+    return stmt.get(...((params ?? []) as SQLiteParam[])) as T | undefined;
   }
   
   /**

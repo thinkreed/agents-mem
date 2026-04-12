@@ -4,12 +4,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { MaterialURI, Scope, EntityType, FactType, UserRole, MessageRole } from '../../src/core/types.js';
+import { createURI } from '../../src/core/types.js';
 
 describe('Core Types', () => {
   describe('MaterialURI', () => {
-    it('should define URI interface with required fields', async () => {
-      const { MaterialURI } = await import('../../src/core/types.js');
-      
+    it('should define URI interface with required fields', () => {
       const uri: MaterialURI = {
         scheme: 'mem',
         userId: 'user123',
@@ -24,9 +24,7 @@ describe('Core Types', () => {
       expect(uri.id).toBe('doc-456');
     });
 
-    it('should have toString method that generates valid URI string', async () => {
-      const { createURI } = await import('../../src/core/types.js');
-      
+    it('should have toString method that generates valid URI string', () => {
       const uri = createURI({
         userId: 'user123',
         agentId: 'agent1',
@@ -37,9 +35,7 @@ describe('Core Types', () => {
       expect(uri.toString()).toBe('mem://user123/agent1/_/documents/doc-456');
     });
 
-    it('should handle undefined agentId and teamId with underscore', async () => {
-      const { createURI } = await import('../../src/core/types.js');
-      
+    it('should handle undefined agentId and teamId with underscore', () => {
       const uri = createURI({
         userId: 'user123',
         type: 'facts',
@@ -49,9 +45,7 @@ describe('Core Types', () => {
       expect(uri.toString()).toBe('mem://user123/_/_/facts/fact-789');
     });
 
-    it('should handle teamId without agentId', async () => {
-      const { createURI } = await import('../../src/core/types.js');
-      
+    it('should handle teamId without agentId', () => {
       const uri = createURI({
         userId: 'user123',
         teamId: 'team5',
@@ -64,9 +58,7 @@ describe('Core Types', () => {
   });
 
   describe('Scope', () => {
-    it('should define Scope interface with userId required', async () => {
-      const { Scope } = await import('../../src/core/types.js');
-      
+    it('should define Scope interface with userId required', () => {
       const scope: Scope = {
         userId: 'user123',
         agentId: 'agent1',
@@ -79,9 +71,7 @@ describe('Core Types', () => {
       expect(scope.teamId).toBeDefined();
     });
 
-    it('should have optional agentId and teamId', async () => {
-      const { Scope } = await import('../../src/core/types.js');
-      
+    it('should have optional agentId and teamId', () => {
       const scope: Scope = {
         userId: 'user123',
       };
@@ -93,9 +83,7 @@ describe('Core Types', () => {
   });
 
   describe('EntityType', () => {
-    it('should support all entity types', async () => {
-      const { EntityType } = await import('../../src/core/types.js');
-      
+    it('should support all entity types', () => {
       const entityTypes: EntityType[] = ['documents', 'assets', 'conversations', 'messages', 'facts', 'tiered', 'entity_nodes'];
       
       expect(entityTypes).toContain('documents');
@@ -104,9 +92,7 @@ describe('Core Types', () => {
   });
 
   describe('FactType', () => {
-    it('should support all fact types', async () => {
-      const { FactType } = await import('../../src/core/types.js');
-      
+    it('should support all fact types', () => {
       const factTypes: FactType[] = ['preference', 'decision', 'observation', 'conclusion'];
       
       expect(factTypes).toHaveLength(4);
@@ -114,9 +100,7 @@ describe('Core Types', () => {
   });
 
   describe('UserRole', () => {
-    it('should support all user roles in team', async () => {
-      const { UserRole } = await import('../../src/core/types.js');
-      
+    it('should support all user roles in team', () => {
       const roles: UserRole[] = ['owner', 'admin', 'member', 'guest'];
       
       expect(roles).toHaveLength(4);
@@ -124,9 +108,7 @@ describe('Core Types', () => {
   });
 
   describe('MessageRole', () => {
-    it('should support all message roles', async () => {
-      const { MessageRole } = await import('../../src/core/types.js');
-      
+    it('should support all message roles', () => {
       const roles: MessageRole[] = ['user', 'assistant', 'system', 'tool'];
       
       expect(roles).toHaveLength(4);

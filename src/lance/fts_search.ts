@@ -16,10 +16,20 @@ export interface FTSSearchResult {
 }
 
 /**
- * FTS search options
+ * FTS search options (full)
  */
 export interface FTSSearchOptions {
   tableName: string;
+  queryText: string;
+  column?: string;
+  limit?: number;
+  scope?: Scope;
+}
+
+/**
+ * FTS search convenience options (tableName optional)
+ */
+export interface FTSSearchConvenienceOptions {
   queryText: string;
   column?: string;
   limit?: number;
@@ -64,7 +74,7 @@ export async function ftsSearch(options: FTSSearchOptions): Promise<FTSSearchRes
 /**
  * FTS search documents
  */
-export async function ftsSearchDocuments(options: FTSSearchOptions): Promise<FTSSearchResult[]> {
+export async function ftsSearchDocuments(options: FTSSearchConvenienceOptions): Promise<FTSSearchResult[]> {
   return ftsSearch({
     ...options,
     tableName: 'documents_vec',
@@ -75,7 +85,7 @@ export async function ftsSearchDocuments(options: FTSSearchOptions): Promise<FTS
 /**
  * FTS search facts
  */
-export async function ftsSearchFacts(options: FTSSearchOptions): Promise<FTSSearchResult[]> {
+export async function ftsSearchFacts(options: FTSSearchConvenienceOptions): Promise<FTSSearchResult[]> {
   return ftsSearch({
     ...options,
     tableName: 'facts_vec',

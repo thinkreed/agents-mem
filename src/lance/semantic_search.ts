@@ -17,10 +17,19 @@ export interface SemanticSearchResult {
 }
 
 /**
- * Semantic search options
+ * Semantic search options (full)
  */
 export interface SemanticSearchOptions {
   tableName: string;
+  queryVector: Float32Array;
+  limit?: number;
+  scope?: Scope;
+}
+
+/**
+ * Semantic search convenience options (tableName optional)
+ */
+export interface SemanticSearchConvenienceOptions {
   queryVector: Float32Array;
   limit?: number;
   scope?: Scope;
@@ -61,7 +70,7 @@ export async function semanticSearch(options: SemanticSearchOptions): Promise<Se
 /**
  * Semantic search documents
  */
-export async function semanticSearchDocuments(options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+export async function semanticSearchDocuments(options: SemanticSearchConvenienceOptions): Promise<SemanticSearchResult[]> {
   return semanticSearch({
     ...options,
     tableName: 'documents_vec'
@@ -71,7 +80,7 @@ export async function semanticSearchDocuments(options: SemanticSearchOptions): P
 /**
  * Semantic search messages
  */
-export async function semanticSearchMessages(options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+export async function semanticSearchMessages(options: SemanticSearchConvenienceOptions): Promise<SemanticSearchResult[]> {
   return semanticSearch({
     ...options,
     tableName: 'messages_vec'
@@ -81,7 +90,7 @@ export async function semanticSearchMessages(options: SemanticSearchOptions): Pr
 /**
  * Semantic search facts
  */
-export async function semanticSearchFacts(options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+export async function semanticSearchFacts(options: SemanticSearchConvenienceOptions): Promise<SemanticSearchResult[]> {
   return semanticSearch({
     ...options,
     tableName: 'facts_vec'

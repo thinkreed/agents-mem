@@ -3,7 +3,7 @@
  * @description SQLite connection tests (TDD)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   DatabaseConnection,
   getConnection,
@@ -49,10 +49,11 @@ describe('SQLite Connection', () => {
       db.exec('CREATE TABLE test (id TEXT PRIMARY KEY, value TEXT)');
       db.exec('INSERT INTO test VALUES ("1", "hello")');
       
-      const result = db.query('SELECT * FROM test');
+      interface TestRow { id: string; value: string }
+      const result = db.query<TestRow>('SELECT * FROM test');
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('1');
-      expect(result[0].value).toBe('hello');
+      expect(result[0]?.id).toBe('1');
+      expect(result[0]?.value).toBe('hello');
       
       db.close();
     });
@@ -63,9 +64,10 @@ describe('SQLite Connection', () => {
       db.exec('CREATE TABLE test (id TEXT PRIMARY KEY, value TEXT)');
       db.run('INSERT INTO test VALUES (?, ?)', ['2', 'world']);
       
-      const result = db.query('SELECT * FROM test WHERE id = ?', ['2']);
+      interface TestRow { id: string; value: string }
+      const result = db.query<TestRow>('SELECT * FROM test WHERE id = ?', ['2']);
       expect(result).toHaveLength(1);
-      expect(result[0].value).toBe('world');
+      expect(result[0]?.value).toBe('world');
       
       db.close();
     });
@@ -170,8 +172,9 @@ describe('SQLite Connection', () => {
         'INSERT INTO test VALUES ("2")'
       ]);
       
-      const result = executeQuery('SELECT COUNT(*) as count FROM test');
-      expect(result[0].count).toBe(2);
+      interface CountRow { count: number }
+      const result = executeQuery<CountRow>('SELECT COUNT(*) as count FROM test');
+      expect(result[0]?.count).toBe(2);
     });
 
     it('should prepare statement', () => {
@@ -180,7 +183,7 @@ describe('SQLite Connection', () => {
       const stmt = prepareStatement('INSERT INTO test VALUES (?, ?)');
       expect(stmt).toBeDefined();
       
-      stmt.run(['1', 'test']);
+      stmt.run('1', 'test');
       
       const result = executeQuery('SELECT * FROM test');
       expect(result).toHaveLength(1);
@@ -191,8 +194,9 @@ describe('SQLite Connection', () => {
     it('should enable WAL mode for file-based database', () => {
       // WAL mode only works for file-based databases, not :memory:
       // Skip this test for in-memory database
-      const result = getConnection().query('PRAGMA journal_mode');
-      expect(result[0].journal_mode).toBeDefined();
+      interface JournalRow { journal_mode: string }
+      const result = getConnection().query<JournalRow>('PRAGMA journal_mode');
+      expect(result[0]?.journal_mode).toBeDefined();
     });
   });
 

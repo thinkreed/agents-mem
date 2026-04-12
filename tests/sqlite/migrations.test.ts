@@ -189,13 +189,14 @@ describe('SQLite Migrations', () => {
       const manager = new MigrationManager(getConnection());
       manager.runMigrations();
       
-      const history = getConnection().query(
+      interface HistoryRow { version: number; applied_at: number }
+      const history = getConnection().query<HistoryRow>(
         'SELECT * FROM migration_history ORDER BY version'
       );
       
       expect(history.length).toBeGreaterThan(0);
-      expect(history[0].version).toBeDefined();
-      expect(history[0].applied_at).toBeDefined();
+      expect(history[0]?.version).toBeDefined();
+      expect(history[0]?.applied_at).toBeDefined();
     });
 
     it('should track migration versions', () => {
@@ -223,11 +224,12 @@ describe('SQLite Migrations', () => {
       runMigrations();
       
       // All tables should exist
-      const result = getConnection().query(
+      interface CountRow { count: number }
+      const result = getConnection().query<CountRow>(
         "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'"
       );
       
-      expect(result[0].count).toBeGreaterThan(10);
+      expect(result[0]?.count).toBeGreaterThan(10);
     });
   });
 });
