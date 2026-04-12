@@ -1,0 +1,93 @@
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-04-12T10:30:00
+**Commit:** 6104fab
+**Branch:** main
+
+## OVERVIEW
+
+Six-layer progressive disclosure memory system for 169+ agents. TypeScript/Bun runtime with dual SQLite+LanceDB storage. Token cost optimization via tiered content loading (L0→L1→L2).
+
+## STRUCTURE
+
+```
+src/
+├── core/        # Types, URI, Scope, Constants (foundation)
+├── sqlite/      # 14 tables, CRUD, migrations (relational)
+├── lance/       # Vector ops, hybrid search (semantic)
+├── tools/       # MCP CRUD handlers (API layer)
+├── tiered/      # L0/L1 content generation
+├── facts/       # Extraction, linking, verification
+├── entity_tree/ # Aggregation, threshold-based tree
+├── embedder/    # Ollama client + cache
+├── llm/         # LLM prompts, streaming
+├── materials/   # URI resolver, trace, store
+└── mcp_server.ts # Entry point (MCP stdio)
+```
+
+## WHERE TO LOOK
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Add entity type | `src/core/types.ts` | EntityType union |
+| SQLite CRUD | `src/sqlite/{entity}.ts` | Pattern: create/get/update/delete/search |
+| Vector search | `src/lance/hybrid_search.ts` | RRF: vector + FTS |
+| MCP tool | `src/tools/crud_handlers.ts` | 4 unified tools |
+| URI parsing | `src/core/uri.ts` | mem:// scheme |
+| Scope filtering | `src/core/scope.ts` | SQL + LanceDB filters |
+| Tiered content | `src/tiered/generator.ts` | L0/L1 generation |
+| Fact extraction | `src/facts/extractor.ts` | Ollama-based |
+
+## CODE MAP
+
+| Symbol | Type | Location | Role |
+|--------|------|----------|------|
+| Scope | interface | core/types.ts:49 | User/Agent/Team isolation |
+| EntityType | type | core/types.ts:60 | Entity union |
+| MaterialURI | interface | core/types.ts:10 | mem:// URI structure |
+| handleMemCreate | function | tools/crud_handlers.ts:62 | MCP create dispatcher |
+| handleMemRead | function | tools/crud_handlers.ts:191 | MCP read dispatcher |
+| hybridSearchDocuments | function | lance/hybrid_search.ts | Vector + FTS + RRF |
+| ScopeFilter | class | core/scope.ts:141 | SQL/Lance filter builder |
+| runMigrations | function | sqlite/migrations.ts | Schema init |
+| createDocumentsVecSchema | function | lance/schema.ts:59 | Arrow schema |
+
+## CONVENTIONS
+
+- **Bun runtime**: No Node.js. Uses `bun:sqlite`, `bun test`
+- **No build step**: TypeScript runs directly via Bun
+- **Snake_case in SQLite**: Records use `user_id`, `created_at`
+- **Unix timestamps**: `Math.floor(Date.now() / 1000)` (seconds)
+- **Scope required**: `userId` mandatory, `agentId/teamId` optional
+- **Embedding dim**: 768 (nomic-embed-text)
+- **Token budgets**: L0=100, L1=2000
+
+## ANTI-PATTERNS (THIS PROJECT)
+
+- **No logger usage**: `src/utils/logger.ts` defined but unused
+- **ScopeFilter unused**: Class exists but not wired to queries
+- **No public index.ts**: Package has no root export barrel
+
+## UNIQUE STYLES
+
+- **Layered schema comments**: L0-L5 markers in `sqlite/schema.ts`
+- **Dynamic imports in tests**: `await import(...)` for isolation
+- **4-tool MCP interface**: Unified CRUD for 6 resource types
+- **Threshold formula**: θ(d) = θ₀ × e^(λd) for entity tree depth
+
+## COMMANDS
+
+```bash
+bun install          # Dependencies
+bun test             # All tests (Vitest)
+bun run typecheck    # TypeScript check
+bun run src/mcp_server.ts  # Start MCP server
+docker-compose run agents-mem-test bun test tests/lance  # LanceDB tests
+```
+
+## NOTES
+
+- **No CI/CD**: No GitHub Actions; Docker-based testing locally
+- **MCP stdio**: Server runs as subprocess, not HTTP
+- **Ollama required**: Embeddings need localhost:11434
+- **Storage**: `~/.agents_mem/` (SQLite + LanceDB vectors)
