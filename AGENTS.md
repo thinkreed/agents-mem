@@ -13,8 +13,9 @@ Six-layer progressive disclosure memory system for 169+ agents. TypeScript/Bun r
 ```
 src/
 ├── core/        # Types, URI, Scope, Constants (foundation)
-├── sqlite/      # 14 tables, CRUD, migrations (relational)
+├── sqlite/      # 15 tables, CRUD, migrations (relational)
 ├── lance/       # Vector ops, hybrid search (semantic)
+├── queue/       # NEW: Background job queue (async embedding)
 ├── tools/       # MCP CRUD handlers (API layer)
 ├── tiered/      # L0/L1 content generation
 ├── facts/       # Extraction, linking, verification
@@ -41,6 +42,8 @@ src/
 | Fact extraction | `src/facts/extractor.ts` | Ollama-based |
 | Fact verification | `src/facts/verifier.ts` | Cross-check with sources |
 | Fact linking | `src/facts/linker.ts` | Deduplication |
+| **Background queue** | `src/queue/embedding_queue.ts` | NEW: Async embedding jobs |
+| **Queue jobs CRUD** | `src/sqlite/queue_jobs.ts` | NEW: Job persistence |
 
 ## CODE MAP
 
@@ -55,6 +58,9 @@ src/
 | ScopeFilter | class | core/scope.ts:141 | SQL/Lance filter builder |
 | runMigrations | function | sqlite/migrations.ts | Schema init |
 | createDocumentsVecSchema | function | lance/schema.ts:59 | Arrow schema |
+| **EmbeddingQueue** | class | queue/embedding_queue.ts | NEW: Async job queue |
+| **getEmbeddingQueue** | function | queue/index.ts | NEW: Singleton queue |
+| **QueueJob** | interface | queue/types.ts | NEW: Job definition |
 
 ## CONVENTIONS
 
@@ -65,6 +71,7 @@ src/
 - **Scope required**: `userId` mandatory, `agentId/teamId` optional
 - **Embedding dim**: 768 (nomic-embed-text)
 - **Token budgets**: L0=100, L1=2000
+- **Async queue**: Background jobs for embedding/FTS index (maxRetries=3)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 

@@ -270,9 +270,10 @@ export async function checkAndRebuild(tableName: string, scope?: Scope): Promise
         const sqliteDocs = getDocumentsByScope(scope);
         const lanceCount = await countDocumentVectors();
         
-        // Only rebuild if LanceDB has SOME vectors but fewer than SQLite
-        // If LanceDB has 0 vectors, it's intentionally empty (skip rebuild)
-        if (lanceCount > 0 && sqliteDocs.length > lanceCount) {
+        // Rebuild if SQLite has more documents than LanceDB vectors
+        // This handles both partial sync (lanceCount > 0 but < sqliteDocs) and
+        // empty LanceDB case (lanceCount = 0 but sqliteDocs > 0)
+        if (sqliteDocs.length > lanceCount) {
           // Pass clearExisting=true to remove stale vectors before rebuilding
           const result = await rebuildTable(tableName, scope, true);
           return {
@@ -400,26 +401,17 @@ async function fallbackVectorSearch(options: HybridSearchOptions): Promise<Hybri
  * Hybrid search documents with auto-rebuild
  */
 export async function hybridSearchDocuments(options: DocumentSearchOptions): Promise<HybridSearchResult[]> {
-  const limit = options.limit ?? 10;
-  
   // Check and rebuild if table missing
   await checkAndRebuild('documents_vec', options.scope);
   
-  // Primary: vector search
-  const vectorResults = await searchDocumentVectors(
-    options.queryVector,
-    limit,
-    options.scope
-  );
-  
-  // Convert to hybrid results
-  return vectorResults.map(r => ({
-    id: r.id,
-    content: r.content,
-    score: 0.5,
-    sourceType: 'documents',
-    sourceId: r.id
-  }));
+  // Use actual hybrid search (FTS + Vector + RRF)
+  return hybridSearch({
+    tableName: 'documents_vec',
+    queryVector: options.queryVector,
+    queryText: options.queryText,
+    limit: options.limit,
+    scope: options.scope
+  });
 }
 
 /**

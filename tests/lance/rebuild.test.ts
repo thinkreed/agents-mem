@@ -123,8 +123,8 @@ describe('LanceDB Auto-Rebuild', () => {
       expect(tablesAfter).toContain('documents_vec');
     });
 
-    it('should NOT trigger rebuild when documents_vec table already exists', async () => {
-      // Setup: Create documents_vec table BEFORE check
+    it('should trigger rebuild when documents_vec table exists but has fewer vectors than SQLite', async () => {
+      // Setup: Create empty documents_vec table (Bug 4 fix: rebuild when lanceCount=0)
       const scope: Scope = { userId: 'user-2' };
       
       await createTable('documents_vec', createDocumentsVecSchema());
@@ -134,20 +134,23 @@ describe('LanceDB Auto-Rebuild', () => {
         user_id: scope.userId,
         doc_type: 'note',
         title: 'Existing Document',
-        content: 'Content that should not trigger rebuild'
+        content: 'Content that should trigger rebuild when LanceDB is empty'
       });
 
-      // Execute checkAndRebuild - should NOT rebuild since table exists
+      // Execute checkAndRebuild - should rebuild because lanceCount(0) < sqliteDocs(1)
       const result = await checkAndRebuild('documents_vec', scope);
 
-      // Expect rebuild was NOT triggered
-      expect(result.rebuilt).toBe(false);
-      expect(result.skipped).toBe(true);
-      expect(result.reason).toContain('table exists');
+      // Expect rebuild WAS triggered (Bug 4 fix: lanceCount=0 triggers rebuild)
+      expect(result.rebuilt).toBe(true);
+      expect(result.error).toBeUndefined();
 
-      // Table should still exist (unchanged)
+      // Table should exist with vectors now
       const tables = await listTables();
       expect(tables).toContain('documents_vec');
+      
+      // LanceDB should now have vectors
+      const lanceCount = await countDocumentVectors();
+      expect(lanceCount).toBeGreaterThan(0);
     });
   });
 
@@ -382,6 +385,140 @@ describe('LanceDB Auto-Rebuild', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
       expect(result.error?.type).toBe('lancedb_error');
+    });
+  });
+
+  describe('Bug 4 Fix - rebuild when LanceDB count < SQLite count', () => {
+    it('should trigger rebuild when LanceDB has 0 vectors but SQLite has documents', async () => {
+      // Setup: Create documents in SQLite
+      const scope: Scope = { userId: 'bug4-user-1' };
+      
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Document for 0 vectors test',
+        content: 'This document should trigger rebuild when LanceDB is empty'
+      });
+
+      // Create empty documents_vec table with 0 vectors
+      await createTable('documents_vec', createDocumentsVecSchema());
+
+      // Verify: LanceDB has 0 vectors, SQLite has 1 document
+      const lanceCount = await countDocumentVectors();
+      const sqliteDocs = getDocumentsByScope(scope);
+      
+      expect(lanceCount).toBe(0);
+      expect(sqliteDocs.length).toBe(1);
+
+      // Execute checkAndRebuild - should trigger rebuild because sqliteDocs (1) > lanceCount (0)
+      const result = await checkAndRebuild('documents_vec', scope);
+
+      // Expected: rebuild triggered
+      expect(result.rebuilt).toBe(true);
+      expect(result.error).toBeUndefined();
+
+      // Verify: vectors now exist
+      const countAfter = await countDocumentVectors();
+      expect(countAfter).toBe(1);
+    });
+
+    it('should trigger rebuild when LanceDB count < SQLite count', async () => {
+      // Setup: Create 3 documents in SQLite
+      const scope: Scope = { userId: 'bug4-user-2' };
+      
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Doc 1',
+        content: 'Content 1'
+      });
+
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Doc 2',
+        content: 'Content 2'
+      });
+
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Doc 3',
+        content: 'Content 3'
+      });
+
+      // Create documents_vec table with only 1 vector (partial state)
+      await createTable('documents_vec', createDocumentsVecSchema());
+      const partialVector = new Float32Array(768).fill(0.5);
+      await addDocumentVector({
+        id: 'partial-doc',
+        content: 'Partial content',
+        vector: partialVector,
+        user_id: scope.userId,
+        title: 'Partial'
+      });
+
+      // Verify: LanceDB has 1 vector, SQLite has 3 documents
+      const lanceCount = await countDocumentVectors();
+      const sqliteDocs = getDocumentsByScope(scope);
+      
+      expect(lanceCount).toBe(1);
+      expect(sqliteDocs.length).toBe(3);
+
+      // Execute checkAndRebuild - should trigger rebuild because sqliteDocs (3) > lanceCount (1)
+      const result = await checkAndRebuild('documents_vec', scope);
+
+      // Expected: rebuild triggered
+      expect(result.rebuilt).toBe(true);
+      expect(result.error).toBeUndefined();
+
+      // Verify: all 3 vectors now exist
+      const countAfter = await countDocumentVectors();
+      expect(countAfter).toBe(3);
+    });
+
+    it('should NOT trigger rebuild when LanceDB count equals SQLite count', async () => {
+      // Setup: Create 2 documents in SQLite
+      const scope: Scope = { userId: 'bug4-user-3' };
+      
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Match Doc 1',
+        content: 'Matching content 1'
+      });
+
+      createDocument({
+        user_id: scope.userId,
+        doc_type: 'note',
+        title: 'Match Doc 2',
+        content: 'Matching content 2'
+      });
+
+      // Execute rebuild to populate LanceDB with matching count
+      const rebuildResult = await rebuildTable('documents_vec', scope);
+      expect(rebuildResult.success).toBe(true);
+
+      // Verify: LanceDB count equals SQLite count
+      const lanceCount = await countDocumentVectors();
+      const sqliteDocs = getDocumentsByScope(scope);
+      
+      expect(lanceCount).toBe(2);
+      expect(sqliteDocs.length).toBe(2);
+      expect(lanceCount).toBe(sqliteDocs.length);
+
+      // Execute checkAndRebuild - should NOT rebuild because counts match
+      const result = await checkAndRebuild('documents_vec', scope);
+
+      // Expected: no rebuild
+      expect(result.rebuilt).toBe(false);
+      expect(result.skipped).toBe(true);
+      // Table exists and counts match - should skip with appropriate reason
+      expect(result.reason).toMatch(/table exists|up to date|counts match/);
+
+      // Count should remain the same
+      const countAfter = await countDocumentVectors();
+      expect(countAfter).toBe(2);
     });
   });
 });

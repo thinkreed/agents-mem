@@ -8,6 +8,7 @@ import { createAsset, getAssetById } from '../sqlite/assets';
 import { createMemoryIndex } from '../sqlite/memory_index';
 import { buildMaterialURI } from './uri_resolver';
 import { generateUUID } from '../utils/uuid';
+import { getEmbeddingQueue } from '../queue';
 
 /**
  * Store document
@@ -51,6 +52,21 @@ export async function storeDocument(input: {
     target_id: doc.id,
     title: input.title
   });
+  
+  // Queue async embedding generation
+  const queue = getEmbeddingQueue();
+  await queue.addJob({
+    type: 'embedding',
+    resourceId: doc.id,
+    resourceType: 'document',
+    payload: { content: input.content, title: input.title },
+    userId: input.userId,
+    agentId: input.agentId,
+    teamId: input.teamId
+  });
+  
+  // Start background processing (fire-and-forget)
+  queue.process().catch(err => console.error('Queue processing error:', err));
   
   return { id: doc.id, uri };
 }
