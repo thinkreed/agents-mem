@@ -1,7 +1,7 @@
 - 基于最新 origin/main 拉出一个新分支，在新分支上工作,任务完成后合并回到 origin/main。
-- tdd 驱动，E:\projects\plans\test-infra.md 按照这个文档建立完整测试体系。
+- tdd 驱动，按照 ./docs/test-infra.md 建立完整测试体系。
 - 必须100% 测试覆盖，必须所有测试通过。
-- 修改代码前必须写好全部测试用例, 参考"E:\projects\mock污染处理.md"处理 mock 污染问题。
+- 修改代码前必须写好全部测试用例, 按照 ./docs/mock污染处理.md 处理 mock 污染问题。
 - 设计变更后必须补全和修改测试用例。
 - 必须更新对应的 AGENTS.md.
 - 设计决策必须和我讨论。
