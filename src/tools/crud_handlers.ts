@@ -16,6 +16,11 @@ import { getMemoryIndexByURI, deleteMemoryIndexByTarget } from '../sqlite/memory
 import { hybridSearchDocuments } from '../lance/hybrid_search';
 import { ftsSearchDocuments } from '../lance/fts_search';
 import { semanticSearchDocuments } from '../lance/semantic_search';
+// LanceDB vector deletion functions - NEW for delete vector sync
+import { deleteDocumentVector } from '../lance/documents_vec';
+import { deleteAssetVector } from '../lance/assets_vec';
+import { deleteMessageVector } from '../lance/messages_vec';
+import { deleteFactVector } from '../lance/facts_vec';
 import { listMaterials } from '../materials/filesystem';
 import { traceFactToSource } from '../materials/trace';
 import { getFactExtractor } from '../facts/extractor';
@@ -850,6 +855,15 @@ export async function handleMemDelete(params: {
         
         deleteDocument(id);
         deleteMemoryIndexByTarget('documents', id);
+        
+        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        try {
+          await deleteDocumentVector(id);
+        } catch (err) {
+          // Log error but don't block main flow - vector deletion failure is acceptable
+          console.error(`Failed to delete document vector from LanceDB: ${(err as Error).message}`);
+        }
+        
         getAuditLogger().log({
           userId: userId ?? 'unknown',
           agentId: scope?.agentId,
@@ -886,6 +900,14 @@ export async function handleMemDelete(params: {
         
         deleteAsset(id);
         deleteMemoryIndexByTarget('assets', id);
+        
+        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        try {
+          await deleteAssetVector(id);
+        } catch (err) {
+          console.error(`Failed to delete asset vector from LanceDB: ${(err as Error).message}`);
+        }
+        
         getAuditLogger().log({
           userId: userId ?? 'unknown',
           agentId: scope?.agentId,
@@ -943,6 +965,14 @@ export async function handleMemDelete(params: {
         }
         
         deleteMessage(id);
+        
+        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        try {
+          await deleteMessageVector(id);
+        } catch (err) {
+          console.error(`Failed to delete message vector from LanceDB: ${(err as Error).message}`);
+        }
+        
         getAuditLogger().log({
           userId: userId ?? 'unknown',
           agentId: scope?.agentId,
@@ -978,6 +1008,14 @@ export async function handleMemDelete(params: {
         }
         
         deleteFact(id);
+        
+        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        try {
+          await deleteFactVector(id);
+        } catch (err) {
+          console.error(`Failed to delete fact vector from LanceDB: ${(err as Error).message}`);
+        }
+        
         getAuditLogger().log({
           userId: userId ?? 'unknown',
           agentId: scope?.agentId,
