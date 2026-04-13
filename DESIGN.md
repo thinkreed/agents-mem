@@ -1,8 +1,8 @@
 # agents-mem 设计文档
 
-**版本**: 1.1  
-**日期**: 2026-04-12  
-**状态**: 实施完成，4 CRUD 工具已上线
+**版本**: 1.2  
+**日期**: 2026-04-13  
+**状态**: 实施完成，日志系统集成上线
 
 ---
 
@@ -22,6 +22,7 @@
 | 分层加载 | L0/L1/L2 三层 | 借鉴 OpenViking，Token 节省 80-91% |
 | 文件系统范式 | `mem://` URI | 借鉴 OpenViking viking:// |
 | 事实追溯 | facts → tiered → documents/assets | 原子事实完整语境 + 可追溯 |
+| **日志系统** | 异步缓冲 + 持久化审计 | 非阻塞输出 + SQLite access_log 表 |
 
 ### 1.3 设计参数
 
@@ -33,6 +34,9 @@
 | θ₀ 基础阈值 | 0.7 (实体树) |
 | λ 深度因子 | 0.1 (θ(d) = θ₀ × e^(λd)) |
 | 数据存储 | `~/.agents_mem/` |
+| **日志缓冲队列** | 1000 (高吞吐配置) |
+| **Flush 间隔** | 5000ms |
+| **日志采样率** | 1.0 (全量审计) |
 
 ---
 
@@ -75,6 +79,7 @@ src/
 ├── facts/         # Extraction + verification + linking
 ├── entity_tree/   # MemTree + θ(d) 阈值
 ├── tools/         # MCP CRUD handlers
+├── utils/         # NEW: Logger, LogBuffer, AuditLogger, Shutdown
 └── mcp_server.ts  # 入口 (4 工具)
 ```
 
@@ -144,6 +149,46 @@ Token >= 3000 → L2 完整内容
 ```
 fact.source_id → tiered_content.id → tiered_content.original_uri → documents/assets
 ```
+
+### 4.5 日志系统架构
+
+**异步缓冲方案**（高吞吐配置）：
+```
+LogBuffer (队列 1000) → Threshold 80% trigger → Interval flush 5s → SQLite access_log
+```
+
+**关键参数**：
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| bufferSize | 1000 | 队列容量 |
+| flushIntervalMs | 5000 | 定时 flush |
+| maxRetries | 5 | SQLite 写入重试 |
+| expandOnFull | true | 队列满时扩容 |
+| maxExpandFactor | 10 | 最大扩容 10x |
+| shutdownTimeout | 2000ms | 优雅关闭等待 |
+
+**审计字段映射**：
+```
+userId → user_id
+agentId → agent_id
+resourceType → memory_type
+resourceId → memory_id
+operation → action
+scope → JSON.stringify({agentId, teamId})
+success → success (true/false)
+reason → reason (错误消息)
+```
+
+**环境变量配置**：
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| LOG_LEVEL | INFO | DEBUG/INFO/WARN/ERROR/SILENT |
+| LOG_BUFFER_SIZE | 1000 | 队列容量 |
+| FLUSH_INTERVAL_MS | 5000 | flush 间隔 |
+| LOG_FORMAT | text | text/json |
+| AUDIT_ENABLED | true | 审计开关 |
+| LOG_SAMPLING_RATE | 1.0 | 采样率 (0-1) |
+| LOG_MAX_FILE_SIZE | 10MB | 文件大小限制 |
 
 ---
 
@@ -219,7 +264,7 @@ fact.source_id → tiered_content.id → tiered_content.original_uri → documen
 
 ---
 
-## 九、实施状态 (2026-04-12)
+## 九、实施状态 (2026-04-13)
 
 所有核心功能已完整实现并通过测试：
 
@@ -234,6 +279,12 @@ fact.source_id → tiered_content.id → tiered_content.original_uri → documen
 | 异步 Embedding 队列 | `src/queue/embedding_queue.ts` | ✅ |
 | 向量表初始化 + 重建回退 | `src/lance/connection.ts` | ✅ |
 | API 错误提示增强 | `src/tools/crud_handlers.ts` | ✅ |
+| **异步日志缓冲** | `src/utils/log_buffer.ts` | ✅ NEW |
+| **环境变量配置** | `src/utils/config.ts` | ✅ NEW |
+| **Logger 扩展** | `src/utils/logger.ts` | ✅ NEW |
+| **审计层** | `src/utils/audit_logger.ts` | ✅ NEW |
+| **优雅关闭** | `src/utils/shutdown.ts` | ✅ NEW |
+| **CRUD 审计集成** | `src/tools/crud_handlers.ts` | ✅ NEW (24 点) |
 
 ---
 

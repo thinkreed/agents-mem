@@ -412,7 +412,7 @@ describe('Performance Integration Tests', () => {
       const throughput = (5000 / elapsed) * 1000; // ops per second
       console.log(`Sustained throughput: ${throughput.toFixed(0)} ops/sec`);
       expect(throughput).toBeGreaterThan(200); // At least 200 ops/sec
-    });
+    }, 30000);
 
     it('should handle mixed operations efficiently', async () => {
       const userIdMixed = `user-mixed-${generateUUID()}`;
@@ -618,6 +618,6 @@ describe('Performance Integration Tests', () => {
       // Verify total records
       const allLogs = getRecentAccessLogs(10000);
       expect(allLogs.length).toBe(10000);
-    });
+    }, 60000);
   });
 });

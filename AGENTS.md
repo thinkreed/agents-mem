@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-12T10:30:00
-**Commit:** 6104fab
-**Branch:** main
+**Generated:** 2026-04-13T02:10:00
+**Commit:** Latest
+**Branch:** feature/logging-integration
 
 ## OVERVIEW
 
@@ -15,7 +15,7 @@ src/
 ├── core/        # Types, URI, Scope, Constants (foundation)
 ├── sqlite/      # 15 tables, CRUD, migrations (relational)
 ├── lance/       # Vector ops, hybrid search (semantic)
-├── queue/       # NEW: Background job queue (async embedding)
+├── queue/       # Background job queue (async embedding)
 ├── tools/       # MCP CRUD handlers (API layer)
 ├── tiered/      # L0/L1 content generation
 ├── facts/       # Extraction, linking, verification
@@ -23,6 +23,7 @@ src/
 ├── embedder/    # Ollama client + cache
 ├── llm/         # LLM prompts, streaming
 ├── materials/   # URI resolver, trace, store
+├── utils/       # NEW: Logger, LogBuffer, AuditLogger, Shutdown
 └── mcp_server.ts # Entry point (MCP stdio)
 ```
 
@@ -43,8 +44,11 @@ src/
 | Fact verification | `src/facts/verifier.ts` | Cross-check with sources |
 | Fact linking | `src/facts/linker.ts` | Deduplication |
 | **Background queue** | `src/queue/embedding_queue.ts` | NEW: Async embedding jobs |
-| **Queue converters** | `src/queue/converters.ts` | NEW: Type conversions |
 | **Queue jobs CRUD** | `src/sqlite/queue_jobs.ts` | NEW: Job persistence |
+| **LogBuffer** | `src/utils/log_buffer.ts` | NEW: Async log queue |
+| **AuditLogger** | `src/utils/audit_logger.ts` | NEW: CRUD audit trail |
+| **Logger config** | `src/utils/config.ts` | NEW: Env var parser |
+| **Shutdown** | `src/utils/shutdown.ts` | NEW: Graceful handlers |
 
 ## CODE MAP
 
@@ -62,8 +66,10 @@ src/
 | **EmbeddingQueue** | class | queue/embedding_queue.ts | NEW: Async job queue |
 | **getEmbeddingQueue** | function | queue/index.ts | NEW: Singleton queue |
 | **QueueJob** | interface | queue/types.ts | NEW: Job definition |
-| **recordToJob** | function | queue/converters.ts | NEW: Type converter (DB → TS) |
-| **jobToRecord** | function | queue/converters.ts | NEW: Type converter (TS → DB) |
+| **LogBuffer** | class | utils/log_buffer.ts | NEW: Async log buffer |
+| **AuditLogger** | class | utils/audit_logger.ts | NEW: Audit trail |
+| **getLogBuffer** | function | utils/log_buffer.ts | NEW: Singleton buffer |
+| **getAuditLogger** | function | utils/audit_logger.ts | NEW: Singleton audit |
 
 ## CONVENTIONS
 
@@ -75,6 +81,7 @@ src/
 - **Embedding dim**: 768 (nomic-embed-text)
 - **Token budgets**: L0=100, L1=2000
 - **Async queue**: Background jobs for embedding/FTS index (maxRetries=3)
+- **Log buffer**: Async queue 1000, flush 5s, audit sampling rate 1.0
 
 ## ERROR MESSAGES
 
@@ -96,7 +103,7 @@ Example valid keys per resource:
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-- **No logger usage**: `src/utils/logger.ts` defined but unused
+- **Logger now integrated**: `src/utils/logger.ts` fully used with async buffering
 - **No public index.ts**: Package has no root export barrel
 
 ## UNIQUE STYLES
