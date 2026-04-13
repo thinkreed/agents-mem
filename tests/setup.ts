@@ -6,8 +6,9 @@
 
 import { beforeEach, afterEach, vi } from 'vitest';
 
-// Clear mock call history before each test
+// Reset module cache before each test (prevents vi.mock hoisting pollution)
 beforeEach(() => {
+  vi.resetModules();
   vi.clearAllMocks();
 });
 

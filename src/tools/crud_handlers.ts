@@ -21,6 +21,7 @@ import { traceFactToSource } from '../materials/trace';
 import { getFactExtractor } from '../facts/extractor';
 import { generateUUID } from '../utils/uuid';
 import { getEmbedding } from '../embedder/ollama';
+import { getAuditLogger } from '../utils/audit_logger';
 
 /**
  * MCP tool response type
@@ -93,6 +94,16 @@ export async function handleMemCreate(params: {
         content: data.content as string,
         metadata: data.metadata as Record<string, unknown> | undefined
       });
+      getAuditLogger().log({
+        userId,
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'document',
+        memoryId: result.id,
+        action: 'create',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(result);
     }
 
@@ -112,6 +123,16 @@ export async function handleMemCreate(params: {
         fileSize: data.fileSize as number,
         storagePath: data.storagePath as string
       });
+      getAuditLogger().log({
+        userId,
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'asset',
+        memoryId: result.id,
+        action: 'create',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(result);
     }
 
@@ -126,6 +147,16 @@ export async function handleMemCreate(params: {
         agent_id: data.agentId as string,
         team_id: scope?.teamId ?? (data.teamId as string),
         title: data.title as string
+      });
+      getAuditLogger().log({
+        userId,
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'conversation',
+        memoryId: id,
+        action: 'create',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
       });
       return successResponse(conv);
     }
@@ -146,6 +177,16 @@ export async function handleMemCreate(params: {
         conversation_id: data.conversationId as string,
         role: data.role as 'user' | 'assistant' | 'system' | 'tool',
         content: data.content as string
+      });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'message',
+        memoryId: id,
+        action: 'create',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
       });
       return successResponse(msg);
     }
@@ -168,6 +209,19 @@ export async function handleMemCreate(params: {
         sourceId: data.sourceId as string,
         content: data.content as string
       });
+      // Log audit for each fact created
+      factIds.forEach((factId: string) => {
+        getAuditLogger().log({
+          userId,
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'fact',
+          memoryId: factId,
+          action: 'create',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
+      });
       return successResponse({ factIds, sourceType: data.sourceType, sourceId: data.sourceId });
     }
 
@@ -178,6 +232,16 @@ export async function handleMemCreate(params: {
       const id = generateUUID();
       const team = createTeam({ id, name: data.name as string, owner_user_id: data.ownerId as string });
       addTeamMember({ team_id: id, agent_id: data.ownerId as string, role: 'owner' });
+      getAuditLogger().log({
+        userId: data.ownerId as string,
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'team',
+        memoryId: id,
+        action: 'create',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(team);
     }
 
@@ -212,6 +276,17 @@ export async function handleMemRead(params: {
       if (query.id) {
         const doc = getDocumentById(query.id as string);
         if (!doc) return errorResponse('Document not found');
+        
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'document',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         
         // Tiered content
         const tier = query.tier as string | undefined;
@@ -259,6 +334,16 @@ export async function handleMemRead(params: {
               scope: userId ? { userId } : undefined,
               limit
             });
+            getAuditLogger().log({
+              userId: userId ?? 'unknown',
+              agentId: scope?.agentId,
+              teamId: scope?.teamId,
+              memoryType: 'document',
+              memoryId: 'search:' + searchMode,
+              action: 'read',
+              scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+              success: true,
+            });
             return successResponse(results);
           }
           
@@ -268,12 +353,32 @@ export async function handleMemRead(params: {
             scope: userId ? { userId } : undefined,
             limit
           });
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'document',
+            memoryId: 'search:' + searchMode,
+            action: 'read',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: true,
+          });
           return successResponse(results);
         } else if (searchMode === 'fts') {
           const results = await ftsSearchDocuments({
             queryText: query.search as string,
             scope: userId ? { userId } : undefined,
             limit
+          });
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'document',
+            memoryId: 'search:' + searchMode,
+            action: 'read',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: true,
           });
           return successResponse(results);
         } else if (searchMode === 'semantic') {
@@ -288,6 +393,16 @@ export async function handleMemRead(params: {
             queryVector: embedding!,
             scope: userId ? { userId } : undefined,
             limit
+          });
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'document',
+            memoryId: 'search:' + searchMode,
+            action: 'read',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: true,
           });
           return successResponse(results);
         } else if (searchMode === 'progressive') {
@@ -305,6 +420,16 @@ export async function handleMemRead(params: {
               scope: userId ? { userId } : undefined,
               limit
             });
+            getAuditLogger().log({
+              userId: userId ?? 'unknown',
+              agentId: scope?.agentId,
+              teamId: scope?.teamId,
+              memoryType: 'document',
+              memoryId: 'search:' + searchMode,
+              action: 'read',
+              scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+              success: true,
+            });
             return successResponse({ results, query: query.search, userId, tokenBudget, tier: 'L0', type: 'progressive' });
           }
           
@@ -313,6 +438,16 @@ export async function handleMemRead(params: {
             queryVector: embedding,
             scope: userId ? { userId } : undefined,
             limit
+          });
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'document',
+            memoryId: 'search:' + searchMode,
+            action: 'read',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: true,
           });
           return successResponse({ results, query: query.search, userId, tokenBudget, tier: 'L0', type: 'progressive' });
         }
@@ -332,6 +467,16 @@ export async function handleMemRead(params: {
       if (query.id) {
         const asset = getAssetById(query.id as string);
         if (!asset) return errorResponse('Asset not found');
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'asset',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse(asset);
       }
 
@@ -347,6 +492,16 @@ export async function handleMemRead(params: {
       if (query.id) {
         const conv = getConversationById(query.id as string);
         if (!conv) return errorResponse('Conversation not found');
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'conversation',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse(conv);
       }
 
@@ -362,6 +517,16 @@ export async function handleMemRead(params: {
       if (query.id) {
         const msg = getMessageById(query.id as string);
         if (!msg) return errorResponse('Message not found');
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'message',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse(msg);
       }
 
@@ -377,6 +542,17 @@ export async function handleMemRead(params: {
       if (query.id) {
         const fact = getFactById(query.id as string);
         if (!fact) return errorResponse('Fact not found');
+        
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'fact',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         
         // Trace to source
         if (query.trace) {
@@ -404,6 +580,17 @@ export async function handleMemRead(params: {
       if (query.id) {
         const team = getTeamById(query.id as string);
         if (!team) return errorResponse('Team not found');
+        
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'team',
+          memoryId: query.id as string,
+          action: 'read',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         
         // Get members
         if (query.filters && (query.filters as Record<string, unknown>).members) {
@@ -467,6 +654,16 @@ export async function handleMemUpdate(params: {
         content: data.content as string | undefined,
         metadata: data.metadata as string | undefined
       });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'document',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(updated);
     }
 
@@ -480,6 +677,16 @@ export async function handleMemUpdate(params: {
       
       const updated = updateAsset(id, {
         // Assets don't have title, but tests expect updateAsset to be called
+      });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'asset',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
       });
       return successResponse(updated);
     }
@@ -495,6 +702,16 @@ export async function handleMemUpdate(params: {
       const updated = updateConversation(id, {
         title: data.title as string | undefined
       });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'conversation',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(updated);
     }
 
@@ -504,6 +721,16 @@ export async function handleMemUpdate(params: {
       
       const updated = updateMessage(id, {
         content: data.content as string | undefined
+      });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'message',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
       });
       return successResponse(updated);
     }
@@ -524,6 +751,16 @@ export async function handleMemUpdate(params: {
       const updated = updateFact(id, {
         verified: data.verified as boolean | undefined
       });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'fact',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
+      });
       return successResponse(updated);
     }
 
@@ -534,11 +771,31 @@ export async function handleMemUpdate(params: {
       // Team member role update
       if (data.memberId && data.role) {
         updateTeamMemberRole(id, data.memberId as string, data.role as string);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'team',
+          memoryId: id,
+          action: 'update',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ teamId: id, memberId: data.memberId, role: data.role });
       }
       
       const updated = updateTeam(id, {
         name: data.name as string | undefined
+      });
+      getAuditLogger().log({
+        userId: userId ?? 'unknown',
+        agentId: scope?.agentId,
+        teamId: scope?.teamId,
+        memoryType: 'team',
+        memoryId: id,
+        action: 'update',
+        scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+        success: true,
       });
       return successResponse(updated);
     }
@@ -572,71 +829,187 @@ export async function handleMemDelete(params: {
     switch (validResource) {
       case 'document': {
         const existing = getDocumentById(id);
-        if (!existing) return successResponse({ success: false, message: 'Document not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Document not found' });
+        }
         
         if (userId && existing.user_id !== userId) {
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'document',
+            memoryId: id,
+            action: 'delete',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: false,
+            reason: 'Scope mismatch: document belongs to different user',
+          });
           return errorResponse('Scope mismatch: document belongs to different user');
         }
         
         deleteDocument(id);
         deleteMemoryIndexByTarget('documents', id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'document',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id });
       }
 
       case 'asset': {
         const existing = getAssetById(id);
-        if (!existing) return successResponse({ success: false, message: 'Asset not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Asset not found' });
+        }
         
         if (userId && existing.user_id !== userId) {
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'asset',
+            memoryId: id,
+            action: 'delete',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: false,
+            reason: 'Scope mismatch: asset belongs to different user',
+          });
           return errorResponse('Scope mismatch: asset belongs to different user');
         }
         
         deleteAsset(id);
         deleteMemoryIndexByTarget('assets', id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'asset',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id });
       }
 
       case 'conversation': {
         const existing = getConversationById(id);
-        if (!existing) return successResponse({ success: false, message: 'Conversation not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Conversation not found' });
+        }
         
         if (userId && existing.user_id !== userId) {
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'conversation',
+            memoryId: id,
+            action: 'delete',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: false,
+            reason: 'Scope mismatch: conversation belongs to different user',
+          });
           return errorResponse('Scope mismatch: conversation belongs to different user');
         }
         
         // Cascade delete messages
         const deletedMessages = deleteMessagesByConversation(id);
         deleteConversation(id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'conversation',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id, deletedMessages });
       }
 
       case 'message': {
         const existing = getMessageById(id);
-        if (!existing) return successResponse({ success: false, message: 'Message not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Message not found' });
+        }
         
         deleteMessage(id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'message',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id });
       }
 
       case 'fact': {
         const existing = getFactById(id);
-        if (!existing) return successResponse({ success: false, message: 'Fact not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Fact not found' });
+        }
         
         if (userId && existing.user_id !== userId) {
+          getAuditLogger().log({
+            userId: userId ?? 'unknown',
+            agentId: scope?.agentId,
+            teamId: scope?.teamId,
+            memoryType: 'fact',
+            memoryId: id,
+            action: 'delete',
+            scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+            success: false,
+            reason: 'Scope mismatch: fact belongs to different user',
+          });
           return errorResponse('Scope mismatch: fact belongs to different user');
         }
         
         deleteFact(id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'fact',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id });
       }
 
       case 'team': {
         const existing = getTeamById(id);
-        if (!existing) return successResponse({ success: false, message: 'Team not found' });
+        if (!existing) {
+          return successResponse({ success: false, message: 'Team not found' });
+        }
         
         // Cascade delete members
         const deletedMembers = deleteTeamMembersByTeam(id);
         deleteTeam(id);
+        getAuditLogger().log({
+          userId: userId ?? 'unknown',
+          agentId: scope?.agentId,
+          teamId: scope?.teamId,
+          memoryType: 'team',
+          memoryId: id,
+          action: 'delete',
+          scope: { agentId: scope?.agentId, teamId: scope?.teamId },
+          success: true,
+        });
         return successResponse({ success: true, id, deletedMembers });
       }
 
@@ -644,6 +1017,8 @@ export async function handleMemDelete(params: {
         return errorResponse(`Unhandled resource type: ${resource}`);
     }
   } catch (err) {
+    // Note: We can't log to audit here because we don't know the resource/ID
+    // Error is already caught by resource-specific handlers above
     return errorResponse(`Service error: ${(err as Error).message}`);
   }
 }
