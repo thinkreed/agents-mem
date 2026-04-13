@@ -22,7 +22,7 @@ export interface DocumentRecord {
   title: string;
   content: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   created_at: number;
   updated_at: number;
   content_length: number;
@@ -44,7 +44,7 @@ export interface DocumentInput {
   title: string;
   content: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   token_count?: number;
 }
 
@@ -55,7 +55,7 @@ export interface DocumentUpdate {
   title?: string;
   content?: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   token_count?: number;
 }
 
@@ -80,12 +80,12 @@ export function createDocument(input: DocumentInput): DocumentRecord {
   db.run(
     `INSERT INTO documents (
       id, user_id, agent_id, team_id, is_global, doc_type, source_url, source_path,
-      title, content, metadata, lance_id, created_at, updated_at, content_length, token_count
+      title, content, metadata, openviking_uri, created_at, updated_at, content_length, token_count
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.user_id, input.agent_id ?? null, input.team_id ?? null,
       isGlobal, input.doc_type, input.source_url ?? null, input.source_path ?? null,
-      input.title, input.content, input.metadata ?? null, input.lance_id ?? null,
+      input.title, input.content, input.metadata ?? null, input.openviking_uri ?? null,
       now, now, contentLength, input.token_count ?? null
     ]
   );
@@ -102,7 +102,7 @@ export function createDocument(input: DocumentInput): DocumentRecord {
     title: input.title,
     content: input.content,
     metadata: input.metadata,
-    lance_id: input.lance_id,
+    openviking_uri: input.openviking_uri,
     created_at: now,
     updated_at: now,
     content_length: contentLength,
@@ -159,14 +159,14 @@ export function updateDocument(id: string, update: DocumentUpdate): DocumentReco
   
   db.run(
     `UPDATE documents SET
-      title = ?, content = ?, metadata = ?, lance_id = ?, token_count = ?,
+      title = ?, content = ?, metadata = ?, openviking_uri = ?, token_count = ?,
       content_length = ?, updated_at = ?
     WHERE id = ?`,
     [
       update.title ?? existing.title,
       content,
       update.metadata ?? existing.metadata,
-      update.lance_id ?? existing.lance_id,
+      update.openviking_uri ?? existing.openviking_uri,
       update.token_count ?? existing.token_count,
       contentLength, now, id
     ]

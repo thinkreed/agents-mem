@@ -62,11 +62,11 @@ export class DatabaseConnection {
   }
   
   /**
-   * Execute SQL without parameters
+   * Execute SQL without parameters (multi-statement support)
    */
   exec(sql: string): void {
     if (!this.open) throw new Error('Database is closed');
-    this.db.run(sql);
+    this.db.exec(sql);
   }
   
 /**

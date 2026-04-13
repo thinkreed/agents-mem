@@ -23,7 +23,7 @@ export interface EntityNodeRecord {
   entity_name: string;
   aggregated_content?: string;
   threshold?: number;
-  lance_id?: string;
+  openviking_uri?: string;
   linked_fact_ids?: string;
   created_at: number;
   updated_at: number;
@@ -44,7 +44,7 @@ export interface EntityNodeInput {
   entity_name: string;
   aggregated_content?: string;
   threshold?: number;
-  lance_id?: string;
+  openviking_uri?: string;
   linked_fact_ids?: string;
 }
 
@@ -55,7 +55,7 @@ export interface EntityNodeUpdate {
   aggregated_content?: string;
   child_count?: number;
   threshold?: number;
-  lance_id?: string;
+  openviking_uri?: string;
   linked_fact_ids?: string;
 }
 
@@ -71,14 +71,14 @@ export function createEntityNode(input: EntityNodeInput): EntityNodeRecord {
   db.run(
     `INSERT INTO entity_nodes (
       id, parent_id, depth, path, child_count, user_id, agent_id, team_id,
-      is_global, entity_name, aggregated_content, threshold, lance_id, linked_fact_ids,
+      is_global, entity_name, aggregated_content, threshold, openviking_uri, linked_fact_ids,
       created_at, updated_at
     ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.parent_id ?? null, input.depth, input.path ?? null,
       input.user_id, input.agent_id ?? null, input.team_id ?? null,
       isGlobal, input.entity_name, input.aggregated_content ?? null,
-      input.threshold ?? null, input.lance_id ?? null, input.linked_fact_ids ?? null,
+      input.threshold ?? null, input.openviking_uri ?? null, input.linked_fact_ids ?? null,
       now, now
     ]
   );
@@ -96,7 +96,7 @@ export function createEntityNode(input: EntityNodeInput): EntityNodeRecord {
     entity_name: input.entity_name,
     aggregated_content: input.aggregated_content,
     threshold: input.threshold,
-    lance_id: input.lance_id,
+    openviking_uri: input.openviking_uri,
     linked_fact_ids: input.linked_fact_ids,
     created_at: now,
     updated_at: now
@@ -187,13 +187,13 @@ export function updateEntityNode(id: string, update: EntityNodeUpdate): EntityNo
   
   db.run(
     `UPDATE entity_nodes SET
-      aggregated_content = ?, child_count = ?, threshold = ?, lance_id = ?, linked_fact_ids = ?, updated_at = ?
+      aggregated_content = ?, child_count = ?, threshold = ?, openviking_uri = ?, linked_fact_ids = ?, updated_at = ?
     WHERE id = ?`,
     [
       update.aggregated_content ?? existing.aggregated_content,
       update.child_count ?? existing.child_count,
       update.threshold ?? existing.threshold,
-      update.lance_id ?? existing.lance_id,
+      update.openviking_uri ?? existing.openviking_uri,
       update.linked_fact_ids ?? existing.linked_fact_ids,
       now, id
     ]

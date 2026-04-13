@@ -26,7 +26,7 @@ export interface AssetRecord {
   title?: string;
   description?: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   text_extracted: boolean;
   created_at: number;
   updated_at: number;
@@ -51,7 +51,7 @@ export interface AssetInput {
   title?: string;
   description?: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   text_extracted?: boolean;
 }
 
@@ -62,7 +62,7 @@ export interface AssetUpdate {
   title?: string;
   description?: string;
   metadata?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   extracted_text?: string;
   text_extracted?: boolean;
 }
@@ -88,14 +88,14 @@ export function createAsset(input: AssetInput): AssetRecord {
     `INSERT INTO assets (
       id, user_id, agent_id, team_id, is_global, filename, file_type, file_size,
       source_url, source_path, storage_path, extracted_text, title, description,
-      metadata, lance_id, text_extracted, created_at, updated_at
+      metadata, openviking_uri, text_extracted, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.user_id, input.agent_id ?? null, input.team_id ?? null,
       isGlobal, input.filename, input.file_type, input.file_size,
       input.source_url ?? null, input.source_path ?? null, input.storage_path,
       input.extracted_text ?? null, input.title ?? null, input.description ?? null,
-      input.metadata ?? null, input.lance_id ?? null, textExtracted, now, now
+      input.metadata ?? null, input.openviking_uri ?? null, textExtracted, now, now
     ]
   );
   
@@ -115,7 +115,7 @@ export function createAsset(input: AssetInput): AssetRecord {
     title: input.title,
     description: input.description,
     metadata: input.metadata,
-    lance_id: input.lance_id,
+    openviking_uri: input.openviking_uri,
     text_extracted: textExtracted,
     created_at: now,
     updated_at: now
@@ -170,14 +170,14 @@ export function updateAsset(id: string, update: AssetUpdate): AssetRecord | unde
   
   db.run(
     `UPDATE assets SET
-      title = ?, description = ?, metadata = ?, lance_id = ?,
+      title = ?, description = ?, metadata = ?, openviking_uri = ?,
       extracted_text = ?, text_extracted = ?, updated_at = ?
     WHERE id = ?`,
     [
       update.title ?? existing.title,
       update.description ?? existing.description,
       update.metadata ?? existing.metadata,
-      update.lance_id ?? existing.lance_id,
+      update.openviking_uri ?? existing.openviking_uri,
       update.extracted_text ?? existing.extracted_text,
       textExtracted, now, id
     ]

@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mockFetchSuccess, mockFetchError } from '../utils/mock_fetch';
 import { storeDocument, storeAsset } from '../../src/materials/store';
 import { resetConnection, closeConnection, setDatabasePath } from '../../src/sqlite/connection';
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
@@ -159,12 +160,7 @@ describe('Material Store', () => {
     describe('embedding and LanceDB storage', () => {
       it('should attempt to generate embedding for document content', async () => {
         // Mock successful embedding response
-        global.fetch = vi.fn(async () => {
-          return {
-            ok: true,
-            json: async () => ({ embedding: new Array(768).fill(0.5) })
-          } as Response;
-        });
+        global.fetch = mockFetchSuccess({ embedding: new Array(768).fill(0.5) });
 
         const input = {
           userId: 'user-1',
@@ -185,9 +181,7 @@ describe('Material Store', () => {
 
       it('should continue when embedding service unavailable', async () => {
         // Mock failed embedding
-        global.fetch = vi.fn(async () => {
-          throw new Error('Ollama service unavailable');
-        });
+        global.fetch = mockFetchError(500, 'Ollama service unavailable');
 
         const input = {
           userId: 'user-1',
@@ -207,12 +201,7 @@ describe('Material Store', () => {
 
       it('should return result even when LanceDB unavailable', async () => {
         // Mock successful embedding but no LanceDB connection
-        global.fetch = vi.fn(async () => {
-          return {
-            ok: true,
-            json: async () => ({ embedding: new Array(768).fill(0.5) })
-          } as Response;
-        });
+        global.fetch = mockFetchSuccess({ embedding: new Array(768).fill(0.5) });
 
         const input = {
           userId: 'user-1',

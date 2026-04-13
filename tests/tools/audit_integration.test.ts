@@ -110,6 +110,25 @@ vi.mock('../../src/sqlite/memory_index', () => ({
   deleteMemoryIndexByTarget: vi.fn()
 }));
 
+// Mock OpenViking HTTP client for search operations
+vi.mock('../../src/openviking', () => ({
+  getOpenVikingClient: vi.fn(() => ({
+    find: vi.fn(async () => ({ memories: [] })),
+    getAbstract: vi.fn(async () => ({ abstract: 'test abstract' })),
+    getOverview: vi.fn(async () => ({ overview: 'test overview' })),
+    read: vi.fn(async () => ({ content: 'test content' })),
+    delete: vi.fn(async () => ({ success: true })),
+    healthCheck: vi.fn(async () => ({ status: 'ok' }))
+  })),
+  getURIAdapter: vi.fn(() => ({
+    toVikingURI: vi.fn((memUri: string) => 'viking://test' + memUri),
+    toMemURI: vi.fn((vikingUri: string) => 'mem://test' + vikingUri)
+  })),
+  getScopeMapper: vi.fn(() => ({
+    mapToVikingTarget: vi.fn(() => 'viking://test/user')
+  }))
+}));
+
 describe('CRUD Handlers Audit Integration', () => {
   beforeEach(() => {
     // Reset audit logger and log buffer

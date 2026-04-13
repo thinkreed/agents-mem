@@ -125,7 +125,7 @@ CREATE TABLE documents (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   metadata TEXT,
-  lance_id TEXT,
+  openviking_uri TEXT,
   created_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
   updated_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
   content_length INTEGER,
@@ -149,7 +149,7 @@ CREATE TABLE assets (
   title TEXT,
   description TEXT,
   metadata TEXT,
-  lance_id TEXT,
+  openviking_uri TEXT,
   text_extracted BOOLEAN DEFAULT FALSE,
   created_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
   updated_at REAL NOT NULL DEFAULT (strftime('%s', 'now'))
@@ -171,8 +171,8 @@ CREATE TABLE tiered_content (
   overview TEXT,
   original_uri TEXT,
   importance REAL DEFAULT 0.5,
-  lance_id_l0 TEXT,
-  lance_id_l1 TEXT,
+  openviking_uri_l0 TEXT,
+  openviking_uri_l1 TEXT,
   l0_generated_at REAL,
   l1_generated_at REAL,
   generation_mode TEXT,
@@ -209,7 +209,7 @@ CREATE TABLE messages (
   tool_calls TEXT,
   tool_results TEXT,
   reasoning TEXT,
-  lance_id TEXT,
+  openviking_uri TEXT,
   tiered_id TEXT,
   tokens_input INTEGER,
   tokens_output INTEGER,
@@ -239,7 +239,7 @@ CREATE TABLE facts (
   importance REAL DEFAULT 0.5,
   confidence REAL DEFAULT 0.8,
   verified BOOLEAN DEFAULT FALSE,
-  lance_id TEXT,
+  openviking_uri TEXT,
   extraction_mode TEXT,
   extracted_at REAL,
   created_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
@@ -260,7 +260,7 @@ CREATE TABLE entity_nodes (
   entity_name TEXT NOT NULL,
   aggregated_content TEXT,
   threshold REAL,
-  lance_id TEXT,
+  openviking_uri TEXT,
   linked_fact_ids TEXT,
   created_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
   updated_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
@@ -339,8 +339,7 @@ CREATE INDEX idx_memory_category ON memory_index(category) WHERE category IS NOT
 
 const INDEXES_DOCUMENTS = `
 CREATE INDEX idx_documents_scope ON documents(user_id, agent_id, team_id);
-CREATE INDEX idx_documents_type ON documents(doc_type);
-CREATE INDEX idx_documents_lance ON documents(lance_id) WHERE lance_id IS NOT NULL`;
+CREATE INDEX idx_documents_type ON documents(doc_type)`;
 
 const INDEXES_ASSETS = `
 CREATE INDEX idx_assets_scope ON assets(user_id, agent_id, team_id);
@@ -355,14 +354,12 @@ CREATE INDEX idx_conversations_scope ON conversations(user_id, agent_id, team_id
 
 const INDEXES_MESSAGES = `
 CREATE INDEX idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX idx_messages_role ON messages(role);
-CREATE INDEX idx_messages_lance ON messages(lance_id) WHERE lance_id IS NOT NULL`;
+CREATE INDEX idx_messages_role ON messages(role)`;
 
 const INDEXES_FACTS = `
 CREATE INDEX idx_facts_scope ON facts(user_id, agent_id, team_id);
 CREATE INDEX idx_facts_source ON facts(source_type, source_id);
-CREATE INDEX idx_facts_type ON facts(fact_type);
-CREATE INDEX idx_facts_lance ON facts(lance_id) WHERE lance_id IS NOT NULL`;
+CREATE INDEX idx_facts_type ON facts(fact_type)`;
 
 const INDEXES_ENTITY_NODES = `
 CREATE INDEX idx_entity_parent ON entity_nodes(parent_id);

@@ -102,7 +102,7 @@ describe('SQLite Schema', () => {
       
       expect(docsSQL).toContain('CREATE TABLE documents');
       expect(docsSQL).toContain('content TEXT NOT NULL');
-      expect(docsSQL).toContain('lance_id TEXT');
+      expect(docsSQL).toContain('openviking_uri TEXT');
     });
 
     it('should return SQL for facts table', () => {

@@ -109,12 +109,12 @@ describe('Tiered Content Table', () => {
       
       const updated = updateTieredContent('tiered-5', {
         overview: 'New overview',
-        lance_id_l0: 'lance-l0-1',
-        lance_id_l1: 'lance-l1-1'
+        openviking_uri_l0: 'viking://default/user-1/resources/tiered/tiered-5/l0',
+        openviking_uri_l1: 'viking://default/user-1/resources/tiered/tiered-5/l1'
       });
       
       expect(updated?.overview).toBe('New overview');
-      expect(updated?.lance_id_l0).toBe('lance-l0-1');
+      expect(updated?.openviking_uri_l0).toBe('viking://default/user-1/resources/tiered/tiered-5/l0');
     });
   });
 

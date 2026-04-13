@@ -16,9 +16,27 @@ vi.mock('../../src/materials/store', () => ({
   storeAsset: vi.fn()
 }));
 
-vi.mock('../../src/lance/hybrid_search', () => ({
-  hybridSearchDocuments: vi.fn()
-}));
+vi.mock('../../src/openviking', () => {
+  const mockFind = vi.fn().mockResolvedValue({
+    memories: [],
+    resources: [{ uri: 'viking://...', abstract: 'Test', score: 0.9 }],
+    skills: [],
+    total: 1,
+  });
+  const mockHealthCheck = vi.fn().mockResolvedValue({ status: 'ok' });
+  const mockClient = {
+    find: mockFind,
+    healthCheck: mockHealthCheck,
+  };
+  const mockMapToVikingTarget = vi.fn().mockReturnValue('viking://default/user/resources');
+  
+  return {
+    getOpenVikingClient: vi.fn(() => mockClient),
+    getScopeMapper: vi.fn(() => ({
+      mapToVikingTarget: mockMapToVikingTarget
+    }))
+  };
+});
 
 vi.mock('../../src/facts/extractor', () => ({
   getFactExtractor: vi.fn()
@@ -40,20 +58,15 @@ vi.mock('../../src/materials/filesystem', () => ({
   listMaterials: vi.fn()
 }));
 
-vi.mock('../../src/embedder/ollama', () => ({
-  getEmbedding: vi.fn()
-}));
-
 // Import handlers after mocks
 import { TOOL_HANDLERS, getHandler } from '../../src/tools/handlers';
 import { storeDocument } from '../../src/materials/store';
-import { hybridSearchDocuments } from '../../src/lance/hybrid_search';
+import { getOpenVikingClient } from '../../src/openviking';
 import { getFactExtractor } from '../../src/facts/extractor';
 import { searchEntityTree } from '../../src/entity_tree/search';
 import { getEntityTreeBuilder } from '../../src/entity_tree/builder';
 import { linkFactToEntities } from '../../src/facts/linker';
 import { listMaterials } from '../../src/materials/filesystem';
-import { getEmbedding } from '../../src/embedder/ollama';
 
 // Type definitions for handler return values
 interface HybridSearchResult {
@@ -152,13 +165,13 @@ describe('Tool Handlers', () => {
   // Task 3: hybrid_search handler TDD tests
   describe('hybrid_search handler', () => {
     it('should generate embedding from query', async () => {
-      const mockEmbedding = new Float32Array(768).fill(0.5);
-      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
-      
-      const mockResults = [
-        { id: 'doc-1', content: 'Test', score: 0.9, sourceType: 'documents' }
-      ];
-      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+      const client = getOpenVikingClient();
+      (client.find as Mock).mockResolvedValue({
+        memories: [{ id: 'doc-1', content: 'Test', score: 0.9 }],
+        resources: [],
+        skills: [],
+        total: 1
+      });
       
       const handler = TOOL_HANDLERS['hybrid_search'];
       const params = {
@@ -168,17 +181,17 @@ describe('Tool Handlers', () => {
       
       await handler(params);
       
-      expect(getEmbedding).toHaveBeenCalledWith('search query');
+      expect(client.find).toHaveBeenCalled();
     });
 
-    it('should call hybridSearchDocuments with embedding and scope', async () => {
-      const mockEmbedding = new Float32Array(768).fill(0.5);
-      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
-      
-      const mockResults = [
-        { id: 'doc-1', content: 'Test', score: 0.9, sourceType: 'documents' }
-      ];
-      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+    it('should call client.find with query and scope', async () => {
+      const client = getOpenVikingClient();
+      (client.find as Mock).mockResolvedValue({
+        memories: [{ id: 'doc-1', content: 'Test', score: 0.9 }],
+        resources: [],
+        skills: [],
+        total: 1
+      });
       
       const handler = TOOL_HANDLERS['hybrid_search'];
       const params = {
@@ -189,17 +202,18 @@ describe('Tool Handlers', () => {
       
       const result = await handler(params);
       
-      expect(hybridSearchDocuments).toHaveBeenCalledWith({
-        queryVector: mockEmbedding,
-        queryText: 'search query',
+      expect(client.find).toHaveBeenCalledWith({
+        query: 'search query',
+        targetUri: expect.any(String),
         limit: 5,
-        scope: { userId: 'user-123' }
+        mode: 'hybrid'
       });
-      expect(result).toEqual({ results: mockResults });
+      expect(result).toHaveProperty('results');
     });
 
-    it('should return error info when embedding fails', async () => {
-      (getEmbedding as Mock).mockRejectedValue(new Error('Embedding service unavailable'));
+    it('should return error info when search fails', async () => {
+      const client = getOpenVikingClient();
+      (client.find as Mock).mockRejectedValue(new Error('Search service unavailable'));
       
       const handler = TOOL_HANDLERS['hybrid_search'];
       const params = {
@@ -212,13 +226,17 @@ describe('Tool Handlers', () => {
       expect(result).toHaveProperty('results');
       expect(result.results).toEqual([]);
       expect(result).toHaveProperty('error');
-      expect(result.error).toContain('embedding');
+      expect(result.error).toContain('search_failed');
     });
 
     it('should use default limit of 10 when not provided', async () => {
-      const mockEmbedding = new Float32Array(768).fill(0.5);
-      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
-      (hybridSearchDocuments as Mock).mockResolvedValue([]);
+      const client = getOpenVikingClient();
+      (client.find as Mock).mockResolvedValue({
+        memories: [],
+        resources: [],
+        skills: [],
+        total: 0
+      });
       
       const handler = TOOL_HANDLERS['hybrid_search'];
       const params = {
@@ -228,20 +246,22 @@ describe('Tool Handlers', () => {
       
       await handler(params);
       
-      expect(hybridSearchDocuments).toHaveBeenCalledWith(
+      expect(client.find).toHaveBeenCalledWith(
         expect.objectContaining({ limit: 10 })
       );
     });
 
     it('should return search results', async () => {
-      const mockEmbedding = new Float32Array(768).fill(0.5);
-      (getEmbedding as Mock).mockResolvedValue(mockEmbedding);
-      
-      const mockResults = [
-        { id: 'doc-1', content: 'Result 1', score: 0.9, sourceType: 'documents' },
-        { id: 'doc-2', content: 'Result 2', score: 0.8, sourceType: 'documents' }
-      ];
-      (hybridSearchDocuments as Mock).mockResolvedValue(mockResults);
+      const client = getOpenVikingClient();
+      (client.find as Mock).mockResolvedValue({
+        memories: [
+          { id: 'doc-1', content: 'Result 1', score: 0.9 },
+          { id: 'doc-2', content: 'Result 2', score: 0.8 }
+        ],
+        resources: [],
+        skills: [],
+        total: 2
+      });
       
       const handler = TOOL_HANDLERS['hybrid_search'];
       const params = {

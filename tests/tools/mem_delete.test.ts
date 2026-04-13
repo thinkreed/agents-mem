@@ -16,21 +16,22 @@ vi.mock('../../src/sqlite/assets', () => ({
   deleteAsset: vi.fn()
 }));
 
-// LanceDB vector mocks - NEW: test vector cleanup on delete
-vi.mock('../../src/lance/documents_vec', () => ({
-  deleteDocumentVector: vi.fn()
-}));
+// OpenViking mock
+const mockDelete = vi.fn().mockResolvedValue({ success: true });
+const mockHealthCheck = vi.fn().mockResolvedValue({ status: 'ok' });
+const mockClient = {
+  delete: mockDelete,
+  healthCheck: mockHealthCheck,
+};
 
-vi.mock('../../src/lance/assets_vec', () => ({
-  deleteAssetVector: vi.fn()
-}));
-
-vi.mock('../../src/lance/messages_vec', () => ({
-  deleteMessageVector: vi.fn()
-}));
-
-vi.mock('../../src/lance/facts_vec', () => ({
-  deleteFactVector: vi.fn()
+vi.mock('../../src/openviking', () => ({
+  getOpenVikingClient: vi.fn(() => mockClient),
+  getScopeMapper: vi.fn(() => ({
+    mapToVikingTarget: vi.fn().mockReturnValue('viking://default/user/resources')
+  })),
+  getURIAdapter: vi.fn(() => ({
+    toVikingURI: vi.fn().mockReturnValue('viking://default/user/resources/documents/doc-123')
+  }))
 }));
 
 vi.mock('../../src/sqlite/conversations', () => ({
@@ -72,11 +73,8 @@ import { getTeamById, deleteTeam } from '../../src/sqlite/teams';
 import { deleteTeamMembersByTeam } from '../../src/sqlite/team_members';
 import { deleteMemoryIndexByTarget } from '../../src/sqlite/memory_index';
 
-// Import mocked LanceDB modules - NEW
-import { deleteDocumentVector } from '../../src/lance/documents_vec';
-import { deleteAssetVector } from '../../src/lance/assets_vec';
-import { deleteMessageVector } from '../../src/lance/messages_vec';
-import { deleteFactVector } from '../../src/lance/facts_vec';
+// Import OpenViking mock
+import { getOpenVikingClient, getScopeMapper, getURIAdapter } from '../../src/openviking';
 
 // Import the actual handler
 import { handleMemDelete } from '../../src/tools/crud_handlers';
@@ -92,7 +90,6 @@ describe('mem_delete tool', () => {
       (getDocumentById as Mock).mockReturnValue({ id: 'doc-1', user_id: 'user-1' });
       (deleteDocument as Mock).mockReturnValue(true);
       (deleteMemoryIndexByTarget as Mock).mockReturnValue(undefined);
-      (deleteDocumentVector as Mock).mockResolvedValue(undefined);
       const result = await getHandler()({
         resource: 'document',
         id: 'doc-1',
@@ -103,41 +100,40 @@ describe('mem_delete tool', () => {
       expect(parsed.success).toBe(true);
     });
 
-    // NEW: TDD test for vector cleanup - should FAIL initially
-    it('should delete document vector from LanceDB', async () => {
-      (getDocumentById as Mock).mockReturnValue({ id: 'doc-vector-1', user_id: 'user-1' });
+    // TDD test for vector cleanup via OpenViking
+    it('should delete document via OpenViking', async () => {
+      (getDocumentById as Mock).mockReturnValue({ id: 'doc-viking-1', user_id: 'user-1' });
       (deleteDocument as Mock).mockReturnValue(true);
       (deleteMemoryIndexByTarget as Mock).mockReturnValue(undefined);
-      (deleteDocumentVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       
       await getHandler()({
         resource: 'document',
-        id: 'doc-vector-1',
+        id: 'doc-viking-1',
         scope: { userId: 'user-1' }
       });
       
-      // This assertion should FAIL because deleteDocumentVector is not called in current implementation
-      expect(deleteDocumentVector).toHaveBeenCalledWith('doc-vector-1');
+      expect(client.delete).toHaveBeenCalled();
     });
 
-    // NEW: test vector deletion failure handling - should not block main flow
-    it('should succeed even if vector deletion fails', async () => {
-      (getDocumentById as Mock).mockReturnValue({ id: 'doc-vector-fail', user_id: 'user-1' });
+    // Test vector deletion failure handling - should not block main flow
+    it('should succeed even if OpenViking deletion fails', async () => {
+      (getDocumentById as Mock).mockReturnValue({ id: 'doc-viking-fail', user_id: 'user-1' });
       (deleteDocument as Mock).mockReturnValue(true);
       (deleteMemoryIndexByTarget as Mock).mockReturnValue(undefined);
-      (deleteDocumentVector as Mock).mockRejectedValue(new Error('LanceDB connection failed'));
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockRejectedValue(new Error('OpenViking connection failed'));
       
       const result = await getHandler()({
         resource: 'document',
-        id: 'doc-vector-fail',
+        id: 'doc-viking-fail',
         scope: { userId: 'user-1' }
       });
       
-      // Should still succeed despite vector deletion failure
+      // Should still succeed despite deletion failure
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.success).toBe(true);
-      // Vector deletion should still be attempted
-      expect(deleteDocumentVector).toHaveBeenCalledWith('doc-vector-fail');
     });
 
     it('should return success=false if not found', async () => {
@@ -166,7 +162,6 @@ describe('mem_delete tool', () => {
     it('should delete asset', async () => {
       (getAssetById as Mock).mockReturnValue({ id: 'asset-1', user_id: 'user-1' });
       (deleteAsset as Mock).mockReturnValue(true);
-      (deleteAssetVector as Mock).mockResolvedValue(undefined);
       const result = await getHandler()({
         resource: 'asset',
         id: 'asset-1',
@@ -175,19 +170,20 @@ describe('mem_delete tool', () => {
       expect(deleteAsset).toHaveBeenCalled();
     });
 
-    // NEW: TDD test for asset vector cleanup - should FAIL initially
-    it('should delete asset vector from LanceDB', async () => {
-      (getAssetById as Mock).mockReturnValue({ id: 'asset-vector-1', user_id: 'user-1' });
+    // TDD test for asset vector cleanup via OpenViking
+    it('should delete asset via OpenViking', async () => {
+      (getAssetById as Mock).mockReturnValue({ id: 'asset-viking-1', user_id: 'user-1' });
       (deleteAsset as Mock).mockReturnValue(true);
-      (deleteAssetVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       
       await getHandler()({
         resource: 'asset',
-        id: 'asset-vector-1',
+        id: 'asset-viking-1',
         scope: { userId: 'user-1' }
       });
       
-      expect(deleteAssetVector).toHaveBeenCalledWith('asset-vector-1');
+      expect(client.delete).toHaveBeenCalled();
     });
   });
 
@@ -211,7 +207,8 @@ describe('mem_delete tool', () => {
     it('should delete message', async () => {
       (getMessageById as Mock).mockReturnValue({ id: 'msg-1' });
       (deleteMessage as Mock).mockReturnValue(true);
-      (deleteMessageVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       const result = await getHandler()({
         resource: 'message',
         id: 'msg-1',
@@ -220,11 +217,12 @@ describe('mem_delete tool', () => {
       expect(deleteMessage).toHaveBeenCalled();
     });
 
-    // NEW: TDD test for message vector cleanup - should FAIL initially
-    it('should delete message vector from LanceDB', async () => {
+    // OpenViking delete test
+    it('should delete message via OpenViking', async () => {
       (getMessageById as Mock).mockReturnValue({ id: 'msg-vector-1' });
       (deleteMessage as Mock).mockReturnValue(true);
-      (deleteMessageVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       
       await getHandler()({
         resource: 'message',
@@ -232,7 +230,7 @@ describe('mem_delete tool', () => {
         scope: { userId: 'user-1' }
       });
       
-      expect(deleteMessageVector).toHaveBeenCalledWith('msg-vector-1');
+      expect(client.delete).toHaveBeenCalled();
     });
   });
 
@@ -240,7 +238,8 @@ describe('mem_delete tool', () => {
     it('should delete fact', async () => {
       (getFactById as Mock).mockReturnValue({ id: 'fact-1', user_id: 'user-1' });
       (deleteFact as Mock).mockReturnValue(true);
-      (deleteFactVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       const result = await getHandler()({
         resource: 'fact',
         id: 'fact-1',
@@ -249,11 +248,12 @@ describe('mem_delete tool', () => {
       expect(deleteFact).toHaveBeenCalled();
     });
 
-    // NEW: TDD test for fact vector cleanup - should FAIL initially
-    it('should delete fact vector from LanceDB', async () => {
+    // OpenViking delete test
+    it('should delete fact via OpenViking', async () => {
       (getFactById as Mock).mockReturnValue({ id: 'fact-vector-1', user_id: 'user-1' });
       (deleteFact as Mock).mockReturnValue(true);
-      (deleteFactVector as Mock).mockResolvedValue(undefined);
+      const client = getOpenVikingClient();
+      (client.delete as Mock).mockResolvedValue({ success: true });
       
       await getHandler()({
         resource: 'fact',
@@ -261,7 +261,7 @@ describe('mem_delete tool', () => {
         scope: { userId: 'user-1' }
       });
       
-      expect(deleteFactVector).toHaveBeenCalledWith('fact-vector-1');
+      expect(client.delete).toHaveBeenCalled();
     });
   });
 

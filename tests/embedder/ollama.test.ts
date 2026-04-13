@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mockFetchSuccess } from '../utils/mock_fetch';
 import {
   OllamaEmbedder,
   createEmbedder,
@@ -16,7 +17,7 @@ import {
 describe('Ollama Embedder', () => {
   describe('Configuration', () => {
     it('should define default model', () => {
-      expect(DEFAULT_EMBED_MODEL).toBe('nomic-embed-text');
+      expect(DEFAULT_EMBED_MODEL).toBe('bge-m3');
     });
 
     it('should define default URL', () => {
@@ -45,7 +46,7 @@ describe('Ollama Embedder', () => {
 
     it('should get dimension', () => {
       const embedder = new OllamaEmbedder();
-      expect(embedder.getDimension()).toBe(768);
+      expect(embedder.getDimension()).toBe(1024);
     });
   });
 
@@ -62,18 +63,7 @@ describe('Ollama Embedder', () => {
     
     beforeEach(() => {
       originalFetch = global.fetch;
-      global.fetch = vi.fn(async (url: string, options?: any) => {
-        // Mock Ollama API response
-        if (url.includes('/api/embeddings')) {
-          return {
-            ok: true,
-            json: async () => ({
-              embedding: Array(768).fill(0.1)
-            })
-          } as Response;
-        }
-        return { ok: false } as Response;
-      });
+      global.fetch = mockFetchSuccess({ embedding: Array(1024).fill(0.1) });
     });
 
     afterEach(() => {
@@ -86,7 +76,7 @@ describe('Ollama Embedder', () => {
       const embedding = await embedder.getEmbedding('test text');
       
       expect(embedding).toBeDefined();
-      expect(embedding.length).toBe(768);
+      expect(embedding.length).toBe(1024);
       expect(global.fetch).toHaveBeenCalled();
     });
 
@@ -96,14 +86,14 @@ describe('Ollama Embedder', () => {
       
       expect(embeddings).toBeDefined();
       expect(embeddings.length).toBe(2);
-      expect(embeddings[0].length).toBe(768);
+      expect(embeddings[0].length).toBe(1024);
     });
 
     it('should use singleton getEmbedding', async () => {
       const embedding = await getEmbedding('test');
       
       expect(embedding).toBeDefined();
-      expect(embedding.length).toBe(768);
+      expect(embedding.length).toBe(1024);
     });
 
     it('should use singleton getEmbeddings', async () => {

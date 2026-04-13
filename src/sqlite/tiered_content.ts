@@ -21,8 +21,8 @@ export interface TieredContentRecord {
   overview?: string;
   original_uri?: string;
   importance: number;
-  lance_id_l0?: string;
-  lance_id_l1?: string;
+  openviking_uri_l0?: string;
+  openviking_uri_l1?: string;
   l0_generated_at?: number;
   l1_generated_at?: number;
   generation_mode?: string;
@@ -44,8 +44,8 @@ export interface TieredContentInput {
   overview?: string;
   original_uri?: string;
   importance?: number;
-  lance_id_l0?: string;
-  lance_id_l1?: string;
+  openviking_uri_l0?: string;
+  openviking_uri_l1?: string;
   generation_mode?: string;
 }
 
@@ -55,8 +55,8 @@ export interface TieredContentInput {
 export interface TieredContentUpdate {
   abstract?: string;
   overview?: string;
-  lance_id_l0?: string;
-  lance_id_l1?: string;
+  openviking_uri_l0?: string;
+  openviking_uri_l1?: string;
   l0_generated_at?: number;
   l1_generated_at?: number;
   importance?: number;
@@ -74,14 +74,14 @@ export function createTieredContent(input: TieredContentInput): TieredContentRec
   db.run(
     `INSERT INTO tiered_content (
       id, user_id, agent_id, team_id, source_type, source_id, abstract, overview,
-      original_uri, importance, lance_id_l0, lance_id_l1, l0_generated_at, l1_generated_at,
+      original_uri, importance, openviking_uri_l0, openviking_uri_l1, l0_generated_at, l1_generated_at,
       generation_mode, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.user_id, input.agent_id ?? null, input.team_id ?? null,
       input.source_type, input.source_id, input.abstract, input.overview ?? null,
       input.original_uri ?? null, importance,
-      input.lance_id_l0 ?? null, input.lance_id_l1 ?? null, null, null,
+      input.openviking_uri_l0 ?? null, input.openviking_uri_l1 ?? null, null, null,
       input.generation_mode ?? null, now, now
     ]
   );
@@ -97,8 +97,8 @@ export function createTieredContent(input: TieredContentInput): TieredContentRec
     overview: input.overview,
     original_uri: input.original_uri,
     importance,
-    lance_id_l0: input.lance_id_l0,
-    lance_id_l1: input.lance_id_l1,
+    openviking_uri_l0: input.openviking_uri_l0,
+    openviking_uri_l1: input.openviking_uri_l1,
     generation_mode: input.generation_mode,
     created_at: now,
     updated_at: now
@@ -164,14 +164,14 @@ export function updateTieredContent(id: string, update: TieredContentUpdate): Ti
   
   db.run(
     `UPDATE tiered_content SET
-      abstract = ?, overview = ?, lance_id_l0 = ?, lance_id_l1 = ?,
+      abstract = ?, overview = ?, openviking_uri_l0 = ?, openviking_uri_l1 = ?,
       l0_generated_at = ?, l1_generated_at = ?, importance = ?, updated_at = ?
     WHERE id = ?`,
     [
       update.abstract ?? existing.abstract,
       update.overview ?? existing.overview,
-      update.lance_id_l0 ?? existing.lance_id_l0,
-      update.lance_id_l1 ?? existing.lance_id_l1,
+      update.openviking_uri_l0 ?? existing.openviking_uri_l0,
+      update.openviking_uri_l1 ?? existing.openviking_uri_l1,
       update.l0_generated_at ?? existing.l0_generated_at,
       update.l1_generated_at ?? existing.l1_generated_at,
       update.importance ?? existing.importance,

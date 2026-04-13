@@ -26,7 +26,7 @@ export interface FactRecord {
   importance: number;
   confidence: number;
   verified: boolean;
-  lance_id?: string;
+  openviking_uri?: string;
   extraction_mode?: string;
   extracted_at?: number;
   created_at: number;
@@ -51,7 +51,7 @@ export interface FactInput {
   importance?: number;
   confidence?: number;
   verified?: boolean;
-  lance_id?: string;
+  openviking_uri?: string;
   extraction_mode?: string;
 }
 
@@ -63,7 +63,7 @@ export interface FactUpdate {
   importance?: number;
   confidence?: number;
   verified?: boolean;
-  lance_id?: string;
+  openviking_uri?: string;
 }
 
 /**
@@ -90,14 +90,14 @@ export function createFact(input: FactInput): FactRecord {
   db.run(
     `INSERT INTO facts (
       id, user_id, agent_id, team_id, is_global, source_type, source_id, source_uri,
-      content, fact_type, entities, importance, confidence, verified, lance_id,
+      content, fact_type, entities, importance, confidence, verified, openviking_uri,
       extraction_mode, extracted_at, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.user_id, input.agent_id ?? null, input.team_id ?? null,
       isGlobal, input.source_type, input.source_id, input.source_uri ?? null,
       input.content, input.fact_type, input.entities,
-      importance, confidence, verified, input.lance_id ?? null,
+      importance, confidence, verified, input.openviking_uri ?? null,
       input.extraction_mode ?? null, null, now, now
     ]
   );
@@ -117,7 +117,7 @@ export function createFact(input: FactInput): FactRecord {
     importance,
     confidence,
     verified,
-    lance_id: input.lance_id,
+    openviking_uri: input.openviking_uri,
     extraction_mode: input.extraction_mode,
     created_at: now,
     updated_at: now
@@ -183,14 +183,14 @@ export function updateFact(id: string, update: FactUpdate): FactRecord | undefin
   
   db.run(
     `UPDATE facts SET
-      content = ?, importance = ?, confidence = ?, verified = ?, lance_id = ?, updated_at = ?
+      content = ?, importance = ?, confidence = ?, verified = ?, openviking_uri = ?, updated_at = ?
     WHERE id = ?`,
     [
       update.content ?? existing.content,
       update.importance ?? existing.importance,
       update.confidence ?? existing.confidence,
       update.verified ?? existing.verified,
-      update.lance_id ?? existing.lance_id,
+      update.openviking_uri ?? existing.openviking_uri,
       now, id
     ]
   );

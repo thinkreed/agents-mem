@@ -207,13 +207,13 @@ describe('Assets Table', () => {
         title: 'New Title',
         description: 'New Description',
         metadata: '{"updated": true}',
-        lance_id: 'lance-123'
+        openviking_uri: 'viking://default/user-1/resources/assets/asset-multi'
       });
       
       expect(updated?.title).toBe('New Title');
       expect(updated?.description).toBe('New Description');
       expect(updated?.metadata).toBe('{"updated": true}');
-      expect(updated?.lance_id).toBe('lance-123');
+      expect(updated?.openviking_uri).toBe('viking://default/user-1/resources/assets/asset-multi');
     });
   });
 

@@ -1,8 +1,8 @@
 # agents-mem 设计文档
 
-**版本**: 1.2  
-**日期**: 2026-04-13  
-**状态**: 实施完成，日志系统集成上线
+**版本**: 1.3  
+**日期**: 2026-04-14  
+**状态**: OpenViking 集成完成，测试修复进行中
 
 ---
 
@@ -16,27 +16,28 @@
 
 | 决策点 | 选择 | 理由 |
 |--------|------|------|
-| 向量数据库 | LanceDB | TypeScript SDK + Bun 兼容 + 原生混合搜索 |
-| 混合搜索 | LanceDB FTS + 向量 + RRF Reranker | 内置 Tantivy BM25 + 向量融合 |
-| 多 Agent Scope | 应用层实现 (user_id/agent_id/team_id) | LanceDB scope 字段 + SQLite 过滤 |
+| 向量数据库 | OpenViking HTTP | HTTP API + 语义搜索 + 多租户支持 |
+| 语义搜索 | OpenViking find API | 支持中文语义 + 混合模式 |
+| 多 Agent Scope | 应用层实现 (user_id/agent_id/team_id) | OpenViking scope 字段 + SQLite 过滤 |
 | 分层加载 | L0/L1/L2 三层 | 借鉴 OpenViking，Token 节省 80-91% |
 | 文件系统范式 | `mem://` URI | 借鉴 OpenViking viking:// |
 | 事实追溯 | facts → tiered → documents/assets | 原子事实完整语境 + 可追溯 |
-| **日志系统** | 异步缓冲 + 持久化审计 | 非阻塞输出 + SQLite access_log 表 |
+| 日志系统 | 异步缓冲 + 持久化审计 | 非阻塞输出 + SQLite access_log 表 |
 
 ### 1.3 设计参数
 
 | 参数 | 值 |
 |------|-----|
-| Embedding 维度 | 768 (nomic-embed-text) |
+| Embedding 维度 | 1024 (bge-m3) |
 | L0 Token 预算 | ~50-100 (一句话摘要) |
 | L1 Token 预算 | ~500-2000 (结构化概述) |
 | θ₀ 基础阈值 | 0.7 (实体树) |
 | λ 深度因子 | 0.1 (θ(d) = θ₀ × e^(λd)) |
 | 数据存储 | `~/.agents_mem/` |
-| **日志缓冲队列** | 1000 (高吞吐配置) |
-| **Flush 间隔** | 5000ms |
-| **日志采样率** | 1.0 (全量审计) |
+| OpenViking 端点 | localhost:1933 |
+| 日志缓冲队列 | 1000 (高吞吐配置) |
+| Flush 间隔 | 5000ms |
+| 日志采样率 | 1.0 (全量审计) |
 
 ---
 
@@ -49,19 +50,19 @@ Layer 0: SCOPE & IDENTITY        — user_id + agent_id + team_id + is_global
 Layer 1: INDEX & METADATA        — mem:// URI, 元数据过滤
 Layer 2: DOCUMENTS & ASSETS      — 原始素材完整保留
 Layer 3: TIERED CONTENT          — L0/L1/L2 分层摘要
-Layer 4: VECTOR + HYBRID SEARCH  — FTS + 向量 + RRF
+Layer 4: VECTOR + SEMANTIC SEARCH — OpenViking find API
 Layer 5: FACTS & ENTITY TREE     — 事实追溯链
 
-存储: SQLite (主数据) + LanceDB (向量 + FTS)
+存储: SQLite (主数据) + OpenViking (向量搜索)
 ```
 
 **渐进式披露流程:**
 | Level | 操作 | Token | 延迟 |
 |-------|------|-------|------|
 | 1 | 元数据定位 (memory_index) | ~50 | 1-5ms |
-| 2 | L0 概览 (tiered_vec) | ~100 | 10-50ms |
-| 3 | L1 概要 (tiered_vec) | ~2k | 10-50ms |
-| 4 | L2 完整 (documents_vec) | 不限 | 20-100ms |
+| 2 | L0 概览 (OpenViking abstract) | ~100 | 10-50ms |
+| 3 | L1 概要 (OpenViking overview) | ~2k | 10-50ms |
+| 4 | L2 完整 (OpenViking read) | 不限 | 20-100ms |
 | 5 | 事实追溯 (facts → documents) | ~1k | 20-100ms |
 | 6 | Agentic 推理 (多轮补检) | ~2k | 100-500ms |
 
@@ -71,7 +72,7 @@ Layer 5: FACTS & ENTITY TREE     — 事实追溯链
 src/
 ├── core/          # URI、Scope、Types、Constants
 ├── sqlite/        # 15 表 CRUD + migrations
-├── lance/         # 向量 ops + hybrid/fts/semantic search
+├── openviking/    # HTTP client, URI adapter, scope mapper
 ├── queue/         # 异步 embedding 队列
 ├── embedder/      # Ollama client + cache
 ├── tiered/        # L0/L1 生成器 (LLM)
@@ -79,7 +80,7 @@ src/
 ├── facts/         # Extraction + verification + linking
 ├── entity_tree/   # MemTree + θ(d) 阈值
 ├── tools/         # MCP CRUD handlers
-├── utils/         # NEW: Logger, LogBuffer, AuditLogger, Shutdown
+├── utils/         # Logger, LogBuffer, AuditLogger, Shutdown
 └── mcp_server.ts  # 入口 (4 工具)
 ```
 
@@ -87,15 +88,16 @@ src/
 
 ## 三、数据模型
 
-### 3.1 LanceDB 向量表
+### 3.1 OpenViking HTTP API
 
-| 表名 | 向量维度 | FTS 列 | Scope 字段 |
-|------|----------|--------|-----------|
-| documents_vec | 768 | content | user_id, agent_id, team_id |
-| messages_vec | 768 | content | user_id, agent_id, team_id |
-| facts_vec | 768 | content | user_id, agent_id, team_id |
-| tiered_vec | 768 | content | user_id, agent_id, team_id, tier |
-| assets_vec | 768 | content | user_id, agent_id, team_id |
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| /api/v1/search/find | GET | 语义搜索 |
+| /api/v1/content/abstract | GET | L0 概览 |
+| /api/v1/content/overview | GET | L1 概要 |
+| /api/v1/content/read | GET | L2 完整内容 |
+| /api/v1/fs | DELETE | 删除资源 |
+| /api/v1/resources | POST | 添加资源 |
 
 ### 3.2 URI 格式
 
@@ -112,15 +114,16 @@ mem://user123/_/_/tiered/tiered-abc
 
 ## 四、核心算法
 
-### 4.1 混合搜索
+### 4.1 OpenViking 语义搜索
 
 ```typescript
-table.search(query, "hybrid")
-  .vector(queryEmbedding)
-  .ftsColumns("content")
-  .where(scopeFilter)
-  .rerank(new RRFReranker())
-  .limit(10)
+const client = getOpenVikingClient();
+const results = await client.find({
+  query: 'search query',
+  target_uri: 'viking://default/user/resources',
+  limit: 10,
+  mode: 'hybrid',
+});
 ```
 
 ### 4.2 渐进式披露 Token 控制
@@ -442,6 +445,88 @@ return successResponse({ success: true, id });
 - **Mock 测试**: `tests/tools/mem_delete.test.ts` - 验证向量删除函数被调用
 - **错误处理测试**: 验证向量删除失败时主流程仍成功
 - **集成测试**: `tests/tools/audit_integration.test.ts` - 真实 LanceDB 验证
+
+---
+
+**文档结束**
+
+---
+
+## 十三、OpenViking 集成 (2026-04-14 更新)
+
+### 13.1 概述
+
+LanceDB 已替换为 OpenViking HTTP 服务。向量存储和语义搜索由 OpenViking 处理。
+
+### 13.2 API 端点
+
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| /api/v1/search/find | GET | 语义搜索 (查询参数传参) |
+| /api/v1/content/abstract | GET | L0 概览 |
+| /api/v1/content/overview | GET | L1 概要 |
+| /api/v1/content/read | GET | L2 完整内容 |
+| /api/v1/fs | DELETE | 删除资源 |
+| /api/v1/resources | POST | 添加资源 |
+
+### 13.3 配置参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| baseUrl | http://localhost:1933 | 服务器地址 |
+| apiKey | - | 认证密钥 |
+| timeout | 30000ms | HTTP 请求超时 |
+| embedding.dimension | 1024 | 向量维度 (bge-m3) |
+
+### 13.4 组件
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| HTTP Client | src/openviking/http_client.ts | OpenViking HTTP SDK |
+| URI Adapter | src/openviking/uri_adapter.ts | mem:// ↔ viking:// 转换 |
+| Scope Mapper | src/openviking/scope_mapper.ts | OpenViking scope 过滤器 |
+| Config | src/openviking/config.ts | 配置管理 |
+
+### 13.5 URI 转换
+
+```
+mem://user123/_/_/documents/doc-abc
+↓ URIAdapter.toVikingURI()
+viking://default/user123/resources/documents/doc-abc
+```
+
+### 13.6 响应格式
+
+**成功响应:**
+```json
+{
+  "status": "ok",
+  "result": { ... },
+  "time": 0.123
+}
+```
+
+**错误响应:**
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Resource not found"
+  },
+  "time": 0.01
+}
+```
+
+### 13.7 测试修复
+
+| 问题 | 修复 |
+|------|------|
+| MatchedContext 类型缺失 | 添加导入到 http_client.ts |
+| API 响应类型断言 | 使用 `as` 类型断言 |
+| Mock fetch preconnect | 创建 tests/utils/mock_fetch.ts |
+| LanceDB 引用移除 | 替换为 OpenViking mock |
+| Queue async/await | 添加 await 到异步调用 |
 
 ---
 

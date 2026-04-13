@@ -17,7 +17,7 @@ export interface MessageRecord {
   tool_calls?: string;
   tool_results?: string;
   reasoning?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   tiered_id?: string;
   tokens_input?: number;
   tokens_output?: number;
@@ -36,7 +36,7 @@ export interface MessageInput {
   tool_calls?: string;
   tool_results?: string;
   reasoning?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   tiered_id?: string;
   tokens_input?: number;
   tokens_output?: number;
@@ -48,7 +48,7 @@ export interface MessageInput {
  */
 export interface MessageUpdate {
   content?: string;
-  lance_id?: string;
+  openviking_uri?: string;
   tiered_id?: string;
 }
 
@@ -63,12 +63,12 @@ export function createMessage(input: MessageInput): MessageRecord {
   db.run(
     `INSERT INTO messages (
       id, conversation_id, role, content, tool_calls, tool_results, reasoning,
-      lance_id, tiered_id, tokens_input, tokens_output, timestamp, source_document_id
+      openviking_uri, tiered_id, tokens_input, tokens_output, timestamp, source_document_id
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, input.conversation_id, input.role, input.content ?? null,
       input.tool_calls ?? null, input.tool_results ?? null, input.reasoning ?? null,
-      input.lance_id ?? null, input.tiered_id ?? null,
+      input.openviking_uri ?? null, input.tiered_id ?? null,
       input.tokens_input ?? null, input.tokens_output ?? null, now,
       input.source_document_id ?? null
     ]
@@ -82,7 +82,7 @@ export function createMessage(input: MessageInput): MessageRecord {
     tool_calls: input.tool_calls,
     tool_results: input.tool_results,
     reasoning: input.reasoning,
-    lance_id: input.lance_id,
+    openviking_uri: input.openviking_uri,
     tiered_id: input.tiered_id,
     tokens_input: input.tokens_input,
     tokens_output: input.tokens_output,
@@ -125,10 +125,10 @@ export function updateMessage(id: string, update: MessageUpdate): MessageRecord 
   if (!existing) return undefined;
   
   db.run(
-    `UPDATE messages SET content = ?, lance_id = ?, tiered_id = ? WHERE id = ?`,
+    `UPDATE messages SET content = ?, openviking_uri = ?, tiered_id = ? WHERE id = ?`,
     [
       update.content ?? existing.content,
-      update.lance_id ?? existing.lance_id,
+      update.openviking_uri ?? existing.openviking_uri,
       update.tiered_id ?? existing.tiered_id,
       id
     ]

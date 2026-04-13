@@ -1,14 +1,21 @@
 /**
  * @file src/embedder/ollama.ts
- * @description Ollama embedding client
+ * @description Ollama embedding client with multilingual support
  */
 
 import { EMBED_DIMENSION } from '../core/constants';
 
 /**
- * Default embedding model
+ * Default embedding model - BGE-M3 for multilingual + Chinese support
+ * 
+ * Model options:
+ * - bge-m3: 1024 dim, 100+ languages, best multilingual (MIRACL 69.20)
+ * - qwen3-embedding:8b: Best Chinese performance on C-MTEB
+ * - nomic-embed-text-v2-moe: 768 dim, MoE multilingual
+ * 
+ * For Chinese text: No preprocessing needed, models handle internally
  */
-export const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
+export const DEFAULT_EMBED_MODEL = 'bge-m3';
 
 /**
  * Default Ollama URL
@@ -29,14 +36,17 @@ export interface EmbedderConfig {
 export class OllamaEmbedder {
   private model: string;
   private url: string;
+  private dimension: number;
   
   constructor(config?: EmbedderConfig) {
     this.model = config?.model ?? DEFAULT_EMBED_MODEL;
     this.url = config?.url ?? DEFAULT_OLLAMA_URL;
+    this.dimension = EMBED_DIMENSION;
   }
   
   /**
    * Get embedding for single text
+   * Works with Chinese directly - no preprocessing needed
    */
   async getEmbedding(text: string): Promise<Float32Array> {
     const response = await fetch(`${this.url}/api/embeddings`, {
@@ -50,7 +60,11 @@ export class OllamaEmbedder {
     
     const data = await response.json() as { embedding: number[] };
     
-    return new Float32Array(data.embedding);
+    // Handle different dimension models
+    const embedding = data.embedding;
+    this.dimension = embedding.length;
+    
+    return new Float32Array(embedding);
   }
   
   /**
@@ -75,10 +89,10 @@ export class OllamaEmbedder {
   }
   
   /**
-   * Get dimension
+   * Get dimension (dynamic based on model)
    */
   getDimension(): number {
-    return EMBED_DIMENSION;
+    return this.dimension;
   }
 }
 

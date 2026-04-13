@@ -204,9 +204,9 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
+      await queue.processJob(job);
 
-      const updated = queue.getJob(job.id);
+      const updated = await queue.getJob(job.id);
       expect(updated?.status).toBe('completed');
       expect(updated?.completedAt).toBeDefined();
     });
@@ -240,14 +240,14 @@ describe('EmbeddingQueue', () => {
       });
 
       // Process all
-      await queue.processJob(job1.id);
-      processed.push(queue.getJob(job1.id)!.status);
+      await queue.processJob(job1);
+      processed.push((await queue.getJob(job1.id))!.status);
       
-      await queue.processJob(job2.id);
-      processed.push(queue.getJob(job2.id)!.status);
+      await queue.processJob(job2);
+      processed.push((await queue.getJob(job2.id))!.status);
       
-      await queue.processJob(job3.id);
-      processed.push(queue.getJob(job3.id)!.status);
+      await queue.processJob(job3);
+      processed.push((await queue.getJob(job3.id))!.status);
 
       // All should be completed
       expect(processed.every(s => s === 'completed')).toBe(true);
@@ -262,9 +262,9 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
+      await queue.processJob(job);
 
-      const updated = queue.getJob(job.id);
+      const updated = await queue.getJob(job.id);
       expect(updated?.status).toBe('completed');
     });
 
@@ -277,7 +277,7 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
+      await queue.processJob(job);
 
       const mockEmbedder = createEmbedder();
       expect(mockEmbedder.getEmbedding).toHaveBeenCalledWith('embedding text');
@@ -293,9 +293,9 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
+      await queue.processJob(job);
 
-      const updated = queue.getJob(job.id);
+      const updated = await queue.getJob(job.id);
       expect(updated?.status).toBe('completed');
       expect(updated?.completedAt).toBeGreaterThanOrEqual(job.createdAt);
     });
@@ -317,7 +317,7 @@ describe('EmbeddingQueue', () => {
 
       const jobs = queue.getAllJobs();
       for (const job of jobs) {
-        await queue.processJob(job.id);
+        await queue.processJob(job);
       }
 
       expect(queue.getStats().completed).toBe(2);
@@ -332,7 +332,7 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
+      await queue.processJob(job);
 
       expect(queue.getStats().totalProcessed).toBe(1);
     });
@@ -359,7 +359,7 @@ describe('EmbeddingQueue', () => {
       // Process and expect retries
       for (let i = 0; i < 3; i++) {
         try {
-          await failingQueue.processJob(job.id);
+          await failingQueue.processJob(job);
         } catch {
           // Ignore errors during retry
         }
@@ -371,7 +371,7 @@ describe('EmbeddingQueue', () => {
         mockGetEmbedding.mockImplementation(originalMock);
       }
 
-      const updated = failingQueue.getJob(job.id);
+      const updated = await failingQueue.getJob(job.id);
       // After max retries (3), job should be failed
       expect(updated?.retries).toBeLessThanOrEqual(3);
       expect(updated?.status).toBe('failed');
@@ -395,7 +395,7 @@ describe('EmbeddingQueue', () => {
       // Exhaust retries
       for (let i = 0; i < 5; i++) {
         try {
-          await errorQueue.processJob(job.id);
+          await errorQueue.processJob(job);
         } catch {
           // Ignore
         }
@@ -407,7 +407,7 @@ describe('EmbeddingQueue', () => {
         mockGetEmbedding.mockImplementation(originalMock);
       }
 
-      const updated = errorQueue.getJob(job.id);
+      const updated = await errorQueue.getJob(job.id);
       expect(updated?.error).toBeDefined();
       expect(updated?.error).toContain('Specific error');
     });
@@ -420,12 +420,12 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processJob(job.id);
-      expect(queue.getJob(job.id)?.status).toBe('completed');
+      await queue.processJob(job);
+      expect((await queue.getJob(job.id))?.status).toBe('completed');
 
       // Try to process again - should still be completed
-      await queue.processJob(job.id);
-      expect(queue.getJob(job.id)?.status).toBe('completed');
+      await queue.processJob(job);
+      expect((await queue.getJob(job.id))?.status).toBe('completed');
     });
   });
 
@@ -448,7 +448,7 @@ describe('EmbeddingQueue', () => {
       // Process multiple times to exhaust retries (maxRetries = 3)
       for (let i = 0; i < 4; i++) {
         try {
-          await errorQueue.processJob(job.id);
+          await errorQueue.processJob(job);
         } catch { /* ignore */ }
         await new Promise(r => setTimeout(r, 150));
       }
@@ -458,14 +458,14 @@ describe('EmbeddingQueue', () => {
         mockGetEmbedding.mockImplementation(originalMock);
       }
 
-      const updated = errorQueue.getJob(job.id);
+      const updated = await errorQueue.getJob(job.id);
       // After retries exhausted (3), should be failed
       expect(updated?.status).toBe('failed');
     });
 
     it('should handle invalid job IDs gracefully', async () => {
       // Should not throw - just return
-      await queue.processJob('invalid-id');
+      await queue.processJob({ id: 'invalid-id' } as QueueJob);
       // If we reach here, test passes
       expect(true).toBe(true);
     });
@@ -488,7 +488,7 @@ describe('EmbeddingQueue', () => {
       // Exhaust retries
       for (let i = 0; i < 5; i++) {
         try {
-          await errorQueue.processJob(job.id);
+          await errorQueue.processJob(job);
         } catch {
           // Ignore
         }
@@ -536,13 +536,13 @@ describe('EmbeddingQueue', () => {
       // Process first - may fail and retry
       for (let i = 0; i < 4; i++) {
         try {
-          await errorQueue.processJob(job1.id);
+          await errorQueue.processJob(job1);
         } catch { /* ignore */ }
         await new Promise(r => setTimeout(r, 150));
       }
 
       // Process second job - should succeed
-      await errorQueue.processJob(job2.id);
+      await errorQueue.processJob(job2);
 
       // Restore
       if (originalMock) {
@@ -564,12 +564,12 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      const retrieved = queue.getJob(created.id);
+      const retrieved = await queue.getJob(created.id);
       expect(retrieved?.id).toBe(created.id);
     });
 
-    it('should return undefined for non-existent job', () => {
-      const job = queue.getJob('non-existent');
+    it('should return undefined for non-existent job', async () => {
+      const job = await queue.getJob('non-existent');
       expect(job).toBeUndefined();
     });
 
@@ -608,10 +608,10 @@ describe('EmbeddingQueue', () => {
       });
 
       // Process first job
-      await queue.processJob(job1.id);
+      await queue.processJob(job1);
 
-      const pending = queue.getJobsByStatus('pending');
-      const completed = queue.getJobsByStatus('completed');
+      const pending = await queue.getJobsByStatus('pending');
+      const completed = await queue.getJobsByStatus('completed');
 
       expect(pending.length).toBe(1);
       expect(pending[0]?.id).toBe(job2.id);
@@ -634,7 +634,7 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      const pending = queue.getPendingJobs();
+      const pending = await queue.getPendingJobs();
       expect(pending.length).toBe(2);
     });
   });
@@ -657,7 +657,7 @@ describe('EmbeddingQueue', () => {
         userId: 'user-1'
       });
 
-      await queue.processAll();
+      await queue.process();
 
       expect(queue.getStats().pending).toBe(0);
       expect(queue.getStats().completed).toBe(2);
@@ -786,12 +786,10 @@ describe('DB Integration', () => {
 
       expect(mockCreateJob).toHaveBeenCalledWith({
         type: 'embedding',
-        resourceId: 'doc-123',
-        resourceType: 'document',
-        payload: {},
-        userId: 'user-1',
-        agentId: 'agent-1',
-        teamId: 'team-1'
+        payload: JSON.stringify({ resourceId: 'doc-123', resourceType: 'document' }),
+        user_id: 'user-1',
+        agent_id: 'agent-1',
+        team_id: 'team-1'
       });
     });
 
@@ -832,8 +830,6 @@ describe('DB Integration', () => {
         id: job.id,
         type: 'embedding',
         status: 'pending',
-        resourceId: 'doc-123',
-        resourceType: 'document',
         payload: JSON.stringify({ text: 'test' }),
         retries: 0,
         user_id: 'user-1',
@@ -851,23 +847,23 @@ describe('DB Integration', () => {
 
   describe('converters usage', () => {
     it('should use recordToJob for type conversion', async () => {
-      // This test will fail until converters.ts is implemented
-      expect(() => {
-        recordToJob({
-          id: 'test-1',
-          type: 'embedding',
-          status: 'pending',
-          payload: JSON.stringify({ text: 'test' }),
-          retries: 0,
-          user_id: 'user-1',
-          created_at: Math.floor(Date.now() / 1000),
-          updated_at: Math.floor(Date.now() / 1000)
-        });
-      }).toThrow();
+      // Converters are now implemented - verify they work
+      const result = recordToJob({
+        id: 'test-1',
+        type: 'embedding',
+        status: 'pending',
+        payload: JSON.stringify({ text: 'test' }),
+        retries: 0,
+        user_id: 'user-1',
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000)
+      });
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe('test-1');
     });
 
     it('should use jobToRecord for type conversion', async () => {
-      // This test will fail until converters.ts is implemented
       const job: QueueJob = {
         id: 'test-1',
         type: 'embedding',
@@ -880,9 +876,9 @@ describe('DB Integration', () => {
         userId: 'user-1'
       };
 
-      expect(() => {
-        jobToRecord(job);
-      }).toThrow();
+      const result = jobToRecord(job);
+      expect(result).toBeDefined();
+      expect(result.id).toBe('test-1');
     });
   });
 });

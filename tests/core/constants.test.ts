@@ -7,16 +7,16 @@ import { describe, it, expect } from 'vitest';
 
 describe('Core Constants', () => {
   describe('Embedding Configuration', () => {
-    it('should define EMBED_DIMENSION as 768', async () => {
+    it('should define EMBED_DIMENSION as 1024', async () => {
       const { EMBED_DIMENSION } = await import('../../src/core/constants.js');
       
-      expect(EMBED_DIMENSION).toBe(768);
+      expect(EMBED_DIMENSION).toBe(1024);
     });
 
     it('should define DEFAULT_EMBED_MODEL', async () => {
       const { DEFAULT_EMBED_MODEL } = await import('../../src/core/constants.js');
       
-      expect(DEFAULT_EMBED_MODEL).toBe('nomic-embed-text');
+      expect(DEFAULT_EMBED_MODEL).toBe('bge-m3');
     });
   });
 
@@ -69,14 +69,6 @@ describe('Core Constants', () => {
       const path = getStoragePath();
       
       expect(path).toContain('.agents_mem');
-    });
-
-    it('should get LanceDB path under storage path', async () => {
-      const { getLanceDBPath } = await import('../../src/core/constants.js');
-      
-      const lancePath = getLanceDBPath();
-      
-      expect(lancePath).toContain('vectors');
     });
   });
 

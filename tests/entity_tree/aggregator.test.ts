@@ -15,6 +15,7 @@ import { createUser } from '../../src/sqlite/users';
 import { createEntityNode } from '../../src/sqlite/entity_nodes';
 import { aggregateChildContent, updateParentAggregation } from '../../src/entity_tree/aggregator';
 import { resetLLMClient } from '../../src/llm/ollama';
+import { mockFetchSuccess } from '../utils/mock_fetch';
 
 describe('Entity Tree Aggregator', () => {
   beforeEach(() => {
@@ -157,20 +158,12 @@ describe('Entity Tree Aggregator', () => {
       });
 
       // Mock LLM to return very long content that exceeds budget + 50
-      const originalFetch = global.fetch;
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'word '.repeat(500) })  // ~500 words, exceeds 2050 tokens
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'word '.repeat(500) });  // ~500 words, exceeds 2050 tokens
 
       const result = await aggregateChildContent('parent-llm');
 
       // Result should be truncated (combined.slice)
       expect(result.length).toBeLessThanOrEqual(8000);
-      
-      global.fetch = originalFetch;
     });
 
     it('should return LLM result when within budget', async () => {
@@ -203,19 +196,11 @@ describe('Entity Tree Aggregator', () => {
       });
 
       // Mock LLM to return short content within budget
-      const originalFetch = global.fetch;
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'Short LLM response' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'Short LLM response' });
 
       const result = await aggregateChildContent('parent-llm-ok');
 
       expect(result).toBe('Short LLM response');
-      
-      global.fetch = originalFetch;
     });
   });
 

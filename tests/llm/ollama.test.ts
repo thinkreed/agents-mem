@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mockFetchSuccess, mockFetchError } from '../utils/mock_fetch';
 import {
   OllamaLLMClient,
   createLLMClient,
@@ -98,12 +99,7 @@ describe('OllamaLLMClient', () => {
 
   describe('generate method (mocked)', () => {
     it('should call Ollama API with correct parameters', async () => {
-      global.fetch = vi.fn(async (url: string, options?: any) => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'Generated text' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'Generated text' });
 
       const client = new OllamaLLMClient({ url: 'http://localhost:11434' });
       const result = await client.generate('Test prompt');
@@ -140,12 +136,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should throw on API errors', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: false,
-          statusText: 'Model not found'
-        } as Response;
-      });
+      global.fetch = mockFetchError(404, 'Model not found');
 
       const client = new OllamaLLMClient();
 
@@ -153,12 +144,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should accept generate options', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'Result' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'Result' });
 
       const client = new OllamaLLMClient();
       await client.generate('test', { temperature: 0.3, maxTokens: 128 });
@@ -170,12 +156,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should use default temperature and maxTokens', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'Result' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'Result' });
 
       const client = new OllamaLLMClient();
       await client.generate('test');
@@ -193,15 +174,10 @@ describe('OllamaLLMClient', () => {
         { content: 'Fact 1', factType: 'preference', entities: [], confidence: 0.9 }
       ]);
 
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: mockResponse })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: mockResponse });
 
       const client = new OllamaLLMClient();
-      const result = await client.generateJSON('Extract facts', []);
+      const result = await client.generateJSON('Extract facts', []) as Array<{ content: string }>;
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBe(1);
@@ -211,12 +187,7 @@ describe('OllamaLLMClient', () => {
     it('should handle JSON wrapped in markdown code block', async () => {
       const mockResponse = '```json\n["item1", "item2"]\n```';
 
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: mockResponse })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: mockResponse });
 
       const client = new OllamaLLMClient();
       const result = await client.generateJSON('test', []);
@@ -227,12 +198,7 @@ describe('OllamaLLMClient', () => {
     it('should handle JSON wrapped in plain code block', async () => {
       const mockResponse = '```\n{"key": "value"}\n```';
 
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: mockResponse })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: mockResponse });
 
       const client = new OllamaLLMClient();
       const result = await client.generateJSON('test', {});
@@ -241,12 +207,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should return fallback on malformed JSON', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'not valid json' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'not valid json' });
 
       const client = new OllamaLLMClient();
       const fallback = { default: true };
@@ -256,12 +217,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should use lower temperature for JSON generation', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: '[]' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: '[]' });
 
       const client = new OllamaLLMClient();
       await client.generateJSON('test', []);
@@ -272,12 +228,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should return fallback on API error', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: false,
-          statusText: 'Error'
-        } as Response;
-      });
+      global.fetch = mockFetchError(500, 'Error');
 
       const client = new OllamaLLMClient();
       const fallback = ['fallback'];
@@ -322,13 +273,17 @@ describe('OllamaLLMClient', () => {
 
     it('should retry on transient errors', async () => {
       let callCount = 0;
-      global.fetch = vi.fn(async () => {
+      const mockFetch = vi.fn(async () => {
         callCount++;
         if (callCount < 3) {
-          return { ok: false, statusText: 'Connection refused' } as Response;
+          return new Response(null, { status: 500, statusText: 'Connection refused' });
         }
-        return { ok: true, json: async () => ({ response: 'Success' }) } as Response;
+        return new Response(JSON.stringify({ response: 'Success' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       });
+      Object.assign(mockFetch, { preconnect: vi.fn() });
+      global.fetch = mockFetch as unknown as typeof fetch;
 
       const client = new OllamaLLMClient({ maxRetries: 3, retryDelay: 10 });
       const result = await client.generate('test');
@@ -338,9 +293,7 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should throw after max retries exhausted', async () => {
-      global.fetch = vi.fn(async () => {
-        return { ok: false, statusText: 'Service unavailable' } as Response;
-      });
+      global.fetch = mockFetchError(503, 'Service unavailable');
 
       const client = new OllamaLLMClient({ maxRetries: 2, retryDelay: 10 });
 
@@ -349,10 +302,12 @@ describe('OllamaLLMClient', () => {
 
     it('should use exponential backoff for retries', async () => {
       const timestamps: number[] = [];
-      global.fetch = vi.fn(async () => {
+      const mockFetch = vi.fn(async () => {
         timestamps.push(Date.now());
-        return { ok: false, statusText: 'Error' } as Response;
+        return new Response(null, { status: 500, statusText: 'Error' });
       });
+      Object.assign(mockFetch, { preconnect: vi.fn() });
+      global.fetch = mockFetch as unknown as typeof fetch;
 
       const client = new OllamaLLMClient({ maxRetries: 3, retryDelay: 50 });
 
@@ -375,10 +330,13 @@ describe('OllamaLLMClient', () => {
     });
 
     it('should succeed when response is within timeout', async () => {
-      global.fetch = vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return { ok: true, json: async () => ({ response: 'Success' }) } as Response;
+      const mockFetch = vi.fn(async () => {
+        return new Response(JSON.stringify({ response: 'Success' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       });
+      Object.assign(mockFetch, { preconnect: vi.fn() });
+      global.fetch = mockFetch as unknown as typeof fetch;
 
       const client = new OllamaLLMClient({ timeout: 1000, maxRetries: 1 });
       const result = await client.generate('test');

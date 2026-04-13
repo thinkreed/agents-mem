@@ -5,8 +5,7 @@
 
 import { createJob, getJob as dbGetJob, updateJob, getPendingJobs as dbGetPendingJobs, getJobsByStatus as dbGetJobsByStatus } from '../sqlite/queue_jobs';
 import { getEmbedding } from '../embedder/ollama';
-import { addDocumentVector } from '../lance/documents_vec';
-import { createFTSIndex } from '../lance/index';
+import { getOpenVikingClient, getScopeMapper } from '../openviking';
 import { recordToJob, jobToRecord } from './converters';
 import type {
   QueueJob,
@@ -17,6 +16,7 @@ import type {
   QueueEventType,
   QueueEventListener,
   QueueEvent,
+  QueueStats,
 } from './types';
 import { DEFAULT_JOB_CONFIG } from './types';
 
@@ -219,35 +219,40 @@ export class EmbeddingQueue {
 
   /**
    * Process embedding job - generate embedding and store in vector DB
+   * 
+   * Note: Embedding is now handled by OpenViking during addResource().
+   * This job is kept for backward compatibility but no longer performs
+   * LanceDB vector operations.
    */
   private async processEmbedding(job: QueueJob): Promise<void> {
     const text = (job.payload.text as string) || (job.payload.content as string) || '';
     const id = job.payload.documentId || job.resourceId;
     const title = (job.payload.title as string) || 'Untitled';
 
-    // Get embedding
+    // Get embedding (still needed for potential OpenViking sync)
     const vector = await getEmbedding(text);
 
-    // Add to vector store
-    await addDocumentVector({
-      id: id as string,
-      content: text,
-      vector,
-      title,
-      user_id: job.userId,
-      agent_id: job.agentId,
-      team_id: job.teamId,
-    });
+    // Embedding handled by OpenViking during addResource
+    // OpenViking client can be used if direct sync is needed:
+    // const client = getOpenVikingClient();
+    // const scopeMapper = getScopeMapper();
+    // const vikingScope = scopeMapper.toVikingScope({ userId: job.userId, agentId: job.agentId, teamId: job.teamId });
+    // await client.addResource({ ... });
   }
 
   /**
    * Process FTS index job
+   * 
+   * Note: FTS indexing is now handled by OpenViking automatically.
+   * This job is kept for backward compatibility but no longer performs
+   * LanceDB FTS operations.
    */
   private async processFtsIndex(job: QueueJob): Promise<void> {
     const tableName = (job.payload.tableName as string) || `${job.resourceType}_vec`;
     const column = (job.payload.column as string) || 'content';
 
-    await createFTSIndex(tableName, column);
+    // FTS index handled by OpenViking automatically
+    // Previously: await createFTSIndex(tableName, column);
   }
 
   /**
@@ -343,6 +348,27 @@ export class EmbeddingQueue {
    */
   getAllJobs(): QueueJob[] {
     return Array.from(this.jobs.values());
+  }
+
+  /**
+   * Get queue statistics
+   */
+  getStats(): QueueStats {
+    const jobs = this.getAllJobs();
+    return {
+      totalProcessed: jobs.filter((j) => j.status === 'completed' || j.status === 'failed').length,
+      completed: jobs.filter((j) => j.status === 'completed').length,
+      failed: jobs.filter((j) => j.status === 'failed').length,
+      processing: this.processing.size,
+      pending: jobs.filter((j) => j.status === 'pending').length,
+    };
+  }
+
+  /**
+   * Process all pending jobs
+   */
+  processAll(): Promise<void> {
+    return this.process();
   }
 
   /**

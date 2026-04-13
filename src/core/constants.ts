@@ -10,8 +10,15 @@ import * as os from 'os';
 // Embedding Configuration
 // ============================================================================
 
-export const EMBED_DIMENSION = 768;
-export const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
+// BGE-M3: 1024 dimensions, supports 100+ languages including Chinese
+// OpenViking bge_large_zh: same dimension, consistent with cloud deployment
+export const EMBED_DIMENSION = 1024;
+export const DEFAULT_EMBED_MODEL = 'bge-m3';
+
+// Alternative models:
+// - qwen3-embedding:8b - Best Chinese performance, flexible dimensions
+// - nomic-embed-text-v2-moe - 768 dim, multilingual MoE
+// - snowflake-arctic-embed2 - 1024 dim, enterprise-grade
 
 // ============================================================================
 // Tiered Content Configuration
@@ -49,8 +56,10 @@ export function getStoragePath(customBase?: string): string {
   return path.join(base, '.agents_mem');
 }
 
-export function getLanceDBPath(customBase?: string): string {
-  return path.join(getStoragePath(customBase), 'vectors');
+// Note: LanceDB removed, vectors now stored in OpenViking
+// Keep getVectorPath for backward compatibility (returns storage path)
+export function getVectorPath(customBase?: string): string {
+  return getStoragePath(customBase);
 }
 
 // ============================================================================

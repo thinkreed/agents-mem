@@ -3,12 +3,13 @@
  * @description Material store operations
  */
 
-import { createDocument, getDocumentById } from '../sqlite/documents';
+import { createDocument, updateDocument, getDocumentById } from '../sqlite/documents';
 import { createAsset, getAssetById } from '../sqlite/assets';
 import { createMemoryIndex } from '../sqlite/memory_index';
 import { buildMaterialURI } from './uri_resolver';
 import { generateUUID } from '../utils/uuid';
 import { getEmbeddingQueue } from '../queue';
+import { getOpenVikingClient, getScopeMapper, getURIAdapter } from '../openviking';
 
 /**
  * Store document
@@ -53,34 +54,32 @@ export async function storeDocument(input: {
     title: input.title
   });
   
-  // Queue async embedding generation
-  const queue = getEmbeddingQueue();
-  
-  // Queue embedding job (generates vector for semantic search)
-  await queue.addJob({
-    type: 'embedding',
-    resourceId: doc.id,
-    resourceType: 'document',
-    payload: { content: input.content, title: input.title },
-    userId: input.userId,
-    agentId: input.agentId,
-    teamId: input.teamId
-  });
-  
-  // Queue FTS index job (creates BM25 index for keyword search)
-  // This ensures both vector and FTS search work after document creation
-  await queue.addJob({
-    type: 'fts_index',
-    resourceId: doc.id,
-    resourceType: 'document',
-    payload: { tableName: 'documents_vec', column: 'content' },
-    userId: input.userId,
-    agentId: input.agentId,
-    teamId: input.teamId
-  });
-  
-  // Start background processing (fire-and-forget)
-  queue.process().catch(err => console.error('Queue processing error:', err));
+  // Add content to OpenViking (handles embedding and FTS automatically)
+  try {
+    const scopeMapper = getScopeMapper();
+    const uriAdapter = getURIAdapter();
+    const client = getOpenVikingClient();
+    
+    // Build target URI for OpenViking
+    const scope = { userId: input.userId, agentId: input.agentId, teamId: input.teamId };
+    const targetUri = uriAdapter.buildTargetUri(scope, 'documents');
+    
+    // Add resource to OpenViking
+    const result = await client.addResource({
+      content: `${input.title}\n\n${input.content}`,
+      targetUri,
+      reason: `Adding document: ${input.title}`,
+      wait: true
+    });
+    
+    // Update document with OpenViking URI
+    if (result.rootUri) {
+      updateDocument(doc.id, { openviking_uri: result.rootUri });
+    }
+  } catch (err) {
+    console.error('Failed to add document to OpenViking:', err);
+    // Continue even if OpenViking fails - document is still stored in SQLite
+  }
   
   return { id: doc.id, uri };
 }

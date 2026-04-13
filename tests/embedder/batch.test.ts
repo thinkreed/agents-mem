@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mockFetchSuccess } from '../utils/mock_fetch';
 import {
   BatchEmbedder,
   batchEmbed,
@@ -59,10 +60,7 @@ describe('Batch Embedder', () => {
     
     beforeEach(() => {
       originalFetch = global.fetch;
-      global.fetch = vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ embedding: Array(768).fill(0.1) })
-      } as Response));
+      global.fetch = mockFetchSuccess({ embedding: Array(1024).fill(0.1) });
     });
 
     afterEach(() => {
@@ -102,10 +100,7 @@ describe('Batch Embedder', () => {
     
     beforeEach(() => {
       originalFetch = global.fetch;
-      global.fetch = vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ embedding: Array(768).fill(0.1) })
-      } as Response));
+      global.fetch = mockFetchSuccess({ embedding: Array(1024).fill(0.1) });
     });
 
     afterEach(() => {

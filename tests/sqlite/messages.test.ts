@@ -140,11 +140,11 @@ describe('Messages Table', () => {
       
       const updated = updateMessage('msg-9', {
         content: 'Updated',
-        lance_id: 'lance-1'
+        openviking_uri: 'viking://default/user-1/memories/messages/msg-9'
       });
       
       expect(updated?.content).toBe('Updated');
-      expect(updated?.lance_id).toBe('lance-1');
+      expect(updated?.openviking_uri).toBe('viking://default/user-1/memories/messages/msg-9');
     });
   });
 

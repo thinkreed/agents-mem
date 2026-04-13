@@ -24,6 +24,7 @@ import {
 } from '../../src/sqlite/connection';
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
 import { resetLLMClient } from '../../src/llm/ollama';
+import { mockFetchSuccess, mockFetchError } from '../utils/mock_fetch';
 
 describe('FactExtractor', () => {
   let originalFetch: typeof fetch;
@@ -43,12 +44,7 @@ describe('FactExtractor', () => {
     // Mock fetch to simulate LLM failure (returns empty array fallback)
     // Use low retry count and delay to avoid test timeouts
     originalFetch = global.fetch;
-    global.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({ response: '[]' })  // Return empty JSON array
-      } as Response;
-    });
+    global.fetch = mockFetchSuccess({ response: '[]' });
   });
 
   afterEach(() => {
@@ -410,16 +406,11 @@ describe('FactExtractor', () => {
   describe('LLM extraction with validateFacts', () => {
     it('should call LLM and validate facts', async () => {
       // Mock LLM to return valid facts
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'User prefers dark mode', factType: 'preference', entities: ['user', 'theme'], confidence: 0.9 },
-              { content: 'User works on project X', factType: 'observation', entities: ['user', 'project'], confidence: 0.8 }
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'User prefers dark mode', factType: 'preference', entities: ['user', 'theme'], confidence: 0.9 },
+          { content: 'User works on project X', factType: 'observation', entities: ['user', 'project'], confidence: 0.8 }
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -433,16 +424,11 @@ describe('FactExtractor', () => {
     });
 
     it('should filter invalid factType', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
-              { content: 'Invalid fact', factType: 'invalid_type', entities: [], confidence: 0.5 }
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
+          { content: 'Invalid fact', factType: 'invalid_type', entities: [], confidence: 0.5 }
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -453,17 +439,12 @@ describe('FactExtractor', () => {
     });
 
     it('should filter invalid confidence range', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'Valid confidence', factType: 'observation', entities: [], confidence: 0.5 },
-              { content: 'Invalid confidence too high', factType: 'observation', entities: [], confidence: 1.5 },
-              { content: 'Invalid confidence negative', factType: 'observation', entities: [], confidence: -0.1 }
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'Valid confidence', factType: 'observation', entities: [], confidence: 0.5 },
+          { content: 'Invalid confidence too high', factType: 'observation', entities: [], confidence: 1.5 },
+          { content: 'Invalid confidence negative', factType: 'observation', entities: [], confidence: -0.1 }
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -474,19 +455,14 @@ describe('FactExtractor', () => {
     });
 
     it('should filter missing required fields', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'Complete fact', factType: 'decision', entities: ['entity'], confidence: 0.7 },
-              { factType: 'decision', entities: [], confidence: 0.7 },  // missing content
-              { content: '', factType: 'decision', entities: [], confidence: 0.7 },  // empty content
-              { content: 'No entities', factType: 'decision', confidence: 0.7 },  // missing entities
-              { content: 'No type', entities: [], confidence: 0.7 }  // missing factType
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'Complete fact', factType: 'decision', entities: ['entity'], confidence: 0.7 },
+          { factType: 'decision', entities: [], confidence: 0.7 },  // missing content
+          { content: '', factType: 'decision', entities: [], confidence: 0.7 },  // empty content
+          { content: 'No entities', factType: 'decision', confidence: 0.7 },  // missing entities
+          { content: 'No type', entities: [], confidence: 0.7 }  // missing factType
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -497,12 +473,7 @@ describe('FactExtractor', () => {
     });
 
     it('should filter non-array response', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({ response: 'not an array' })
-        } as Response;
-      });
+      global.fetch = mockFetchSuccess({ response: 'not an array' });
 
       const extractor = new FactExtractor();
       const result = await extractor.extract('content');
@@ -511,19 +482,14 @@ describe('FactExtractor', () => {
     });
 
     it('should filter null/undefined facts in array', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
-              null,
-              undefined,
-              'string not object',
-              123
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'Valid fact', factType: 'preference', entities: [], confidence: 0.5 },
+          null,
+          undefined,
+          'string not object',
+          123
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -533,15 +499,10 @@ describe('FactExtractor', () => {
     });
 
     it('should trim content strings', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: '  Trimmed content  ', factType: 'preference', entities: [], confidence: 0.5 }
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: '  Trimmed content  ', factType: 'preference', entities: [], confidence: 0.5 }
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -551,15 +512,10 @@ describe('FactExtractor', () => {
     });
 
     it('should convert entities to strings', async () => {
-      global.fetch = vi.fn(async () => {
-        return {
-          ok: true,
-          json: async () => ({
-            response: JSON.stringify([
-              { content: 'Fact', factType: 'conclusion', entities: ['entity1', 'entity2'], confidence: 0.8 }
-            ])
-          })
-        } as Response;
+      global.fetch = mockFetchSuccess({
+        response: JSON.stringify([
+          { content: 'Fact', factType: 'conclusion', entities: ['entity1', 'entity2'], confidence: 0.8 }
+        ])
       });
 
       const extractor = new FactExtractor();
@@ -570,9 +526,7 @@ describe('FactExtractor', () => {
 
     it('should return empty array on LLM fetch failure', async () => {
       // Mock LLM to return error
-      global.fetch = vi.fn(async () => {
-        throw new Error('Network error');
-      });
+      global.fetch = mockFetchError(500, 'Network error');
 
       const extractor = new FactExtractor();
       const result = await extractor.extract('content');

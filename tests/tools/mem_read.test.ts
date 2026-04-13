@@ -34,16 +34,42 @@ vi.mock('../../src/sqlite/team_members', () => ({
   getTeamMembers: vi.fn()
 }));
 
-vi.mock('../../src/lance/hybrid_search', () => ({
-  hybridSearchDocuments: vi.fn()
-}));
+// Shared mock for client.find - must be module-level to work correctly
+const mockFind = vi.fn().mockResolvedValue({
+  documents: [],
+  memories: [],
+  skills: [],
+  total: 0
+});
 
-vi.mock('../../src/lance/fts_search', () => ({
-  ftsSearchDocuments: vi.fn()
-}));
+const mockGetAbstract = vi.fn().mockResolvedValue('abstract content');
+const mockGetOverview = vi.fn().mockResolvedValue('overview content');
+const mockRead = vi.fn().mockResolvedValue({ content: 'full content' });
+const mockHealthCheck = vi.fn().mockResolvedValue({ status: 'ok' });
+const mockMapToVikingTarget = vi.fn().mockReturnValue('viking://default/user/resources');
+const mockBuildTargetForType = vi.fn().mockReturnValue('viking://default/user/resources/documents');
+const mockToMemURI = vi.fn().mockReturnValue('mem://user/_/_/documents/doc-123');
+const mockToVikingURI = vi.fn().mockReturnValue('viking://default/user/resources/documents/doc-123');
+const mockBuildTargetUri = vi.fn().mockReturnValue('viking://default/user/resources/documents');
 
-vi.mock('../../src/lance/semantic_search', () => ({
-  semanticSearchDocuments: vi.fn()
+// OpenViking mock - use module-level mocks
+vi.mock('../../src/openviking', () => ({
+  getOpenVikingClient: vi.fn(() => ({
+    find: mockFind,
+    getAbstract: mockGetAbstract,
+    getOverview: mockGetOverview,
+    read: mockRead,
+    healthCheck: mockHealthCheck
+  })),
+  getScopeMapper: vi.fn(() => ({
+    mapToVikingTarget: mockMapToVikingTarget,
+    buildTargetForType: mockBuildTargetForType
+  })),
+  getURIAdapter: vi.fn(() => ({
+    toMemURI: mockToMemURI,
+    toVikingURI: mockToVikingURI,
+    buildTargetUri: mockBuildTargetUri
+  }))
 }));
 
 vi.mock('../../src/materials/filesystem', () => ({
@@ -65,9 +91,8 @@ import { getConversationById, listConversations } from '../../src/sqlite/convers
 import { getFactById, searchFacts, getFactsBySource } from '../../src/sqlite/facts';
 import { getTeamById, listTeams } from '../../src/sqlite/teams';
 import { getTeamMembers } from '../../src/sqlite/team_members';
-import { hybridSearchDocuments } from '../../src/lance/hybrid_search';
-import { ftsSearchDocuments } from '../../src/lance/fts_search';
-import { semanticSearchDocuments } from '../../src/lance/semantic_search';
+// OpenViking imports
+import { getOpenVikingClient, getScopeMapper, getURIAdapter } from '../../src/openviking';
 import { listMaterials } from '../../src/materials/filesystem';
 import { traceFactToSource } from '../../src/materials/trace';
 import { getEmbedding } from '../../src/embedder/ollama';
@@ -141,37 +166,57 @@ describe('mem_read tool', () => {
 
   describe('document resource - search', () => {
     it('should hybrid search', async () => {
-      (hybridSearchDocuments as Mock).mockResolvedValue([{ id: 'doc-1' }]);
+      mockFind.mockResolvedValueOnce({
+        documents: [{ uri: 'viking://default/user/documents/doc-1', abstract: 'test', score: 0.9 }],
+        memories: [],
+        skills: [],
+        total: 1
+      });
       const result = await getHandler()({
         resource: 'document',
         query: { search: 'test', searchMode: 'hybrid' },
         scope: { userId: 'user-1' }
       });
-      expect(hybridSearchDocuments).toHaveBeenCalled();
+      expect(mockFind).toHaveBeenCalled();
     });
 
     it('should fts search', async () => {
-      (ftsSearchDocuments as Mock).mockResolvedValue([{ id: 'doc-1' }]);
+      mockFind.mockResolvedValueOnce({
+        documents: [{ uri: 'viking://default/user/documents/doc-1', abstract: 'test', score: 0.9 }],
+        memories: [],
+        skills: [],
+        total: 1
+      });
       await getHandler()({
         resource: 'document',
         query: { search: 'test', searchMode: 'fts' },
         scope: { userId: 'user-1' }
       });
-      expect(ftsSearchDocuments).toHaveBeenCalled();
+      expect(mockFind).toHaveBeenCalled();
     });
 
     it('should semantic search', async () => {
-      (semanticSearchDocuments as Mock).mockResolvedValue([{ id: 'doc-1' }]);
+      mockFind.mockResolvedValueOnce({
+        documents: [{ uri: 'viking://default/user/documents/doc-1', abstract: 'test', score: 0.95 }],
+        memories: [],
+        skills: [],
+        total: 1
+      });
       await getHandler()({
         resource: 'document',
         query: { search: 'test', searchMode: 'semantic' },
         scope: { userId: 'user-1' }
       });
-      expect(semanticSearchDocuments).toHaveBeenCalled();
+      expect(mockFind).toHaveBeenCalled();
     });
 
     it('should progressive search', async () => {
-      (hybridSearchDocuments as Mock).mockResolvedValue([{ id: 'doc-1' }]);
+      mockFind.mockResolvedValueOnce({
+        documents: [{ uri: 'viking://default/user/documents/doc-1', abstract: 'test', score: 0.9 }],
+        memories: [],
+        skills: [],
+        total: 1
+      });
       const result = await getHandler()({
         resource: 'document',
         query: { search: 'test', searchMode: 'progressive', tokenBudget: 500 },

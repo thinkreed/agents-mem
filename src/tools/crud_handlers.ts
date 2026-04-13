@@ -13,19 +13,12 @@ import { getDocumentById, searchDocuments, updateDocument, deleteDocument } from
 import { getAssetById, updateAsset, deleteAsset } from '../sqlite/assets';
 import { getFactById, searchFacts, updateFact, deleteFact, getFactsBySource } from '../sqlite/facts';
 import { getMemoryIndexByURI, deleteMemoryIndexByTarget } from '../sqlite/memory_index';
-import { hybridSearchDocuments } from '../lance/hybrid_search';
-import { ftsSearchDocuments } from '../lance/fts_search';
-import { semanticSearchDocuments } from '../lance/semantic_search';
-// LanceDB vector deletion functions - NEW for delete vector sync
-import { deleteDocumentVector } from '../lance/documents_vec';
-import { deleteAssetVector } from '../lance/assets_vec';
-import { deleteMessageVector } from '../lance/messages_vec';
-import { deleteFactVector } from '../lance/facts_vec';
+// OpenViking HTTP API integration (replaces LanceDB)
+import { getOpenVikingClient, getURIAdapter, getScopeMapper } from '../openviking';
 import { listMaterials } from '../materials/filesystem';
 import { traceFactToSource } from '../materials/trace';
 import { getFactExtractor } from '../facts/extractor';
 import { generateUUID } from '../utils/uuid';
-import { getEmbedding } from '../embedder/ollama';
 import { getAuditLogger } from '../utils/audit_logger';
 
 /**
@@ -293,7 +286,7 @@ export async function handleMemRead(params: {
           success: true,
         });
         
-        // Tiered content
+        // Tiered content via OpenViking
         const tier = query.tier as string | undefined;
         if (tier) {
           const validTiers = ['L0', 'L1', 'L2'];
@@ -301,12 +294,35 @@ export async function handleMemRead(params: {
             return errorResponse(`Invalid tier: ${tier}. Must be one of: ${validTiers.join(', ')}`);
           }
           
+          const client = getOpenVikingClient();
+          const uriAdapter = getURIAdapter();
+          const memUri = `mem://${userId ?? 'unknown'}/${scope?.agentId ?? '_'}/${scope?.teamId ?? '_'}/documents/${doc.id}`;
+          const vikingUri = uriAdapter.toVikingURI(memUri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId });
+          
           if (tier === 'L0') {
-            return successResponse({ abstract: doc.content?.slice(0, 200) ?? '', documentId: doc.id, tier: 'L0' });
+            try {
+              const abstract = await client.getAbstract(vikingUri);
+              return successResponse({ abstract, documentId: doc.id, tier: 'L0' });
+            } catch (err) {
+              // Fallback to local slice if OpenViking unavailable
+              return successResponse({ abstract: doc.content?.slice(0, 200) ?? '', documentId: doc.id, tier: 'L0' });
+            }
           } else if (tier === 'L1') {
-            return successResponse({ overview: doc.content?.slice(0, 1000) ?? '', documentId: doc.id, tier: 'L1' });
+            try {
+              const overview = await client.getOverview(vikingUri);
+              return successResponse({ overview, documentId: doc.id, tier: 'L1' });
+            } catch (err) {
+              // Fallback to local slice if OpenViking unavailable
+              return successResponse({ overview: doc.content?.slice(0, 1000) ?? '', documentId: doc.id, tier: 'L1' });
+            }
           } else {
-            return successResponse({ id: doc.id, title: doc.title, content: doc.content, docType: doc.doc_type, tier: 'L2' });
+            try {
+              const contentResult = await client.read(vikingUri);
+              return successResponse({ id: doc.id, title: doc.title, content: contentResult.content, docType: doc.doc_type, tier: 'L2' });
+            } catch (err) {
+              // Fallback to local content if OpenViking unavailable
+              return successResponse({ id: doc.id, title: doc.title, content: doc.content, docType: doc.doc_type, tier: 'L2' });
+            }
           }
         }
         
@@ -325,39 +341,26 @@ export async function handleMemRead(params: {
         const tokenBudget = (query.tokenBudget as number) ?? 500;
 
         if (searchMode === 'hybrid') {
-          let embedding: Float32Array | undefined;
-          try {
-            embedding = await getEmbedding(query.search as string);
-          } catch {
-            // Embedding service unavailable, fall back to FTS
-          }
+          // OpenViking find with hybrid mode (vector + FTS + rerank)
+          const client = getOpenVikingClient();
+          const scopeMapper = getScopeMapper();
+          const uriAdapter = getURIAdapter();
           
-          // If embedding failed, use FTS instead
-          if (!embedding) {
-            const results = await ftsSearchDocuments({
-              queryText: query.search as string,
-              scope: userId ? { userId } : undefined,
-              limit
-            });
-            getAuditLogger().log({
-              userId: userId ?? 'unknown',
-              agentId: scope?.agentId,
-              teamId: scope?.teamId,
-              memoryType: 'document',
-              memoryId: 'search:' + searchMode,
-              action: 'read',
-              scope: { agentId: scope?.agentId, teamId: scope?.teamId },
-              success: true,
-            });
-            return successResponse(results);
-          }
+          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
           
-          const results = await hybridSearchDocuments({
-            queryText: query.search as string,
-            queryVector: embedding,
-            scope: userId ? { userId } : undefined,
-            limit
+          const findResult = await client.find({
+            query: query.search as string,
+            targetUri,
+            limit,
+            mode: 'hybrid',
           });
+          
+          // Convert viking:// URIs to mem:// URIs for response
+          const results = findResult.memories.map(m => ({
+            ...m,
+            uri: uriAdapter.toMemURI(m.uri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId }),
+          }));
+          
           getAuditLogger().log({
             userId: userId ?? 'unknown',
             agentId: scope?.agentId,
@@ -370,11 +373,26 @@ export async function handleMemRead(params: {
           });
           return successResponse(results);
         } else if (searchMode === 'fts') {
-          const results = await ftsSearchDocuments({
-            queryText: query.search as string,
-            scope: userId ? { userId } : undefined,
-            limit
+          // OpenViking find with FTS mode only
+          const client = getOpenVikingClient();
+          const scopeMapper = getScopeMapper();
+          const uriAdapter = getURIAdapter();
+          
+          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          
+          const findResult = await client.find({
+            query: query.search as string,
+            targetUri,
+            limit,
+            mode: 'fts',
           });
+          
+          // Convert viking:// URIs to mem:// URIs for response
+          const results = findResult.memories.map(m => ({
+            ...m,
+            uri: uriAdapter.toMemURI(m.uri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId }),
+          }));
+          
           getAuditLogger().log({
             userId: userId ?? 'unknown',
             agentId: scope?.agentId,
@@ -387,18 +405,26 @@ export async function handleMemRead(params: {
           });
           return successResponse(results);
         } else if (searchMode === 'semantic') {
-          let embedding: Float32Array | undefined;
-          try {
-            embedding = await getEmbedding(query.search as string);
-          } catch {
-            return errorResponse('Embedding service unavailable for semantic search');
-          }
+          // OpenViking find with vector mode only
+          const client = getOpenVikingClient();
+          const scopeMapper = getScopeMapper();
+          const uriAdapter = getURIAdapter();
           
-          const results = await semanticSearchDocuments({
-            queryVector: embedding!,
-            scope: userId ? { userId } : undefined,
-            limit
+          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          
+          const findResult = await client.find({
+            query: query.search as string,
+            targetUri,
+            limit,
+            mode: 'vector',
           });
+          
+          // Convert viking:// URIs to mem:// URIs for response
+          const results = findResult.memories.map(m => ({
+            ...m,
+            uri: uriAdapter.toMemURI(m.uri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId }),
+          }));
+          
           getAuditLogger().log({
             userId: userId ?? 'unknown',
             agentId: scope?.agentId,
@@ -411,39 +437,27 @@ export async function handleMemRead(params: {
           });
           return successResponse(results);
         } else if (searchMode === 'progressive') {
-          let embedding: Float32Array | undefined;
-          try {
-            embedding = await getEmbedding(query.search as string);
-          } catch {
-            // Fall back to FTS without embedding
-          }
+          // OpenViking find with L0 tier filter
+          const client = getOpenVikingClient();
+          const scopeMapper = getScopeMapper();
+          const uriAdapter = getURIAdapter();
           
-          // Use FTS if no embedding
-          if (!embedding) {
-            const results = await ftsSearchDocuments({
-              queryText: query.search as string,
-              scope: userId ? { userId } : undefined,
-              limit
-            });
-            getAuditLogger().log({
-              userId: userId ?? 'unknown',
-              agentId: scope?.agentId,
-              teamId: scope?.teamId,
-              memoryType: 'document',
-              memoryId: 'search:' + searchMode,
-              action: 'read',
-              scope: { agentId: scope?.agentId, teamId: scope?.teamId },
-              success: true,
-            });
-            return successResponse({ results, query: query.search, userId, tokenBudget, tier: 'L0', type: 'progressive' });
-          }
+          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
           
-          const results = await hybridSearchDocuments({
-            queryText: query.search as string,
-            queryVector: embedding,
-            scope: userId ? { userId } : undefined,
-            limit
+          const findResult = await client.find({
+            query: query.search as string,
+            targetUri,
+            limit,
+            mode: 'hybrid',
+            tier: 'L0',
           });
+          
+          // Convert viking:// URIs to mem:// URIs for response
+          const results = findResult.memories.map(m => ({
+            ...m,
+            uri: uriAdapter.toMemURI(m.uri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId }),
+          }));
+          
           getAuditLogger().log({
             userId: userId ?? 'unknown',
             agentId: scope?.agentId,
@@ -856,12 +870,16 @@ export async function handleMemDelete(params: {
         deleteDocument(id);
         deleteMemoryIndexByTarget('documents', id);
         
-        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        // OpenViking: Delete from remote backend (non-blocking on failure)
         try {
-          await deleteDocumentVector(id);
+          const client = getOpenVikingClient();
+          const uriAdapter = getURIAdapter();
+          const memUri = `mem://${userId}/${scope?.agentId ?? '_'}/${scope?.teamId ?? '_'}/documents/${id}`;
+          const vikingUri = uriAdapter.toVikingURI(memUri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId });
+          await client.delete(vikingUri);
         } catch (err) {
-          // Log error but don't block main flow - vector deletion failure is acceptable
-          console.error(`Failed to delete document vector from LanceDB: ${(err as Error).message}`);
+          // Log error but don't block main flow - backend deletion failure is acceptable
+          console.error(`Failed to delete document from OpenViking: ${(err as Error).message}`);
         }
         
         getAuditLogger().log({
@@ -901,11 +919,15 @@ export async function handleMemDelete(params: {
         deleteAsset(id);
         deleteMemoryIndexByTarget('assets', id);
         
-        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        // OpenViking: Delete from remote backend (non-blocking on failure)
         try {
-          await deleteAssetVector(id);
+          const client = getOpenVikingClient();
+          const uriAdapter = getURIAdapter();
+          const memUri = `mem://${userId}/${scope?.agentId ?? '_'}/${scope?.teamId ?? '_'}/assets/${id}`;
+          const vikingUri = uriAdapter.toVikingURI(memUri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId });
+          await client.delete(vikingUri);
         } catch (err) {
-          console.error(`Failed to delete asset vector from LanceDB: ${(err as Error).message}`);
+          console.error(`Failed to delete asset from OpenViking: ${(err as Error).message}`);
         }
         
         getAuditLogger().log({
@@ -966,11 +988,15 @@ export async function handleMemDelete(params: {
         
         deleteMessage(id);
         
-        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        // OpenViking: Delete from remote backend (non-blocking on failure)
         try {
-          await deleteMessageVector(id);
+          const client = getOpenVikingClient();
+          const uriAdapter = getURIAdapter();
+          const memUri = `mem://${userId ?? 'unknown'}/${scope?.agentId ?? '_'}/${scope?.teamId ?? '_'}/messages/${id}`;
+          const vikingUri = uriAdapter.toVikingURI(memUri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId });
+          await client.delete(vikingUri);
         } catch (err) {
-          console.error(`Failed to delete message vector from LanceDB: ${(err as Error).message}`);
+          console.error(`Failed to delete message from OpenViking: ${(err as Error).message}`);
         }
         
         getAuditLogger().log({
@@ -1009,11 +1035,15 @@ export async function handleMemDelete(params: {
         
         deleteFact(id);
         
-        // NEW: Delete vector from LanceDB (non-blocking on failure)
+        // OpenViking: Delete from remote backend (non-blocking on failure)
         try {
-          await deleteFactVector(id);
+          const client = getOpenVikingClient();
+          const uriAdapter = getURIAdapter();
+          const memUri = `mem://${userId}/${scope?.agentId ?? '_'}/${scope?.teamId ?? '_'}/facts/${id}`;
+          const vikingUri = uriAdapter.toVikingURI(memUri, { userId: userId ?? 'unknown', agentId: scope?.agentId, teamId: scope?.teamId });
+          await client.delete(vikingUri);
         } catch (err) {
-          console.error(`Failed to delete fact vector from LanceDB: ${(err as Error).message}`);
+          console.error(`Failed to delete fact from OpenViking: ${(err as Error).message}`);
         }
         
         getAuditLogger().log({

@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { runMigrations } from './sqlite/migrations';
-import { initTables } from './lance/connection';
+import { getOpenVikingClient } from './openviking';
 import { handleMemCreate, handleMemRead, handleMemUpdate, handleMemDelete } from './tools/crud_handlers';
 
 /**
@@ -17,12 +17,17 @@ async function createMCPServer(): Promise<McpServer> {
   // Run migrations first
   runMigrations();
   
-  // Initialize LanceDB vector tables
+  // Check OpenViking backend health
   try {
-    await initTables();
-    console.error('[LanceDB] Vector tables initialized');
+    const client = getOpenVikingClient();
+    const health = await client.healthCheck();
+    if (health.status === 'ok') {
+      console.error('[OpenViking] Backend connected');
+    } else {
+      console.error('[OpenViking] Backend degraded:', health.message);
+    }
   } catch (error) {
-    console.error('[LanceDB] Initialization failed:', error);
+    console.error('[OpenViking] Connection failed:', error);
     // Continue in degraded mode
   }
   

@@ -4,12 +4,11 @@
  */
 
 import { storeDocument, storeAsset } from '../materials/store';
-import { hybridSearchDocuments } from '../lance/hybrid_search';
+import { getOpenVikingClient, getScopeMapper } from '../openviking';
 import { getFactExtractor } from '../facts/extractor';
 import { searchEntityTree } from '../entity_tree/search';
 import { getEntityTreeBuilder } from '../entity_tree/builder';
 import { listMaterials } from '../materials/filesystem';
-import { getEmbedding } from '../embedder/ollama';
 
 /**
  * Tool handler function type
@@ -34,30 +33,31 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     return result;
   },
   
-  // Task 3: hybrid_search handler - generate embedding and search
+  // Task 3: hybrid_search handler - use OpenViking find
   hybrid_search: async (params) => {
     try {
       const query = params.query as string;
       const userId = params.userId as string;
       const limit = (params.limit as number) ?? 10;
       
-      // Generate embedding for query
-      const queryVector = await getEmbedding(query);
+      // Use OpenViking for hybrid search
+      const client = getOpenVikingClient();
+      const scopeMapper = getScopeMapper();
+      const targetUri = scopeMapper.mapToVikingTarget({ userId });
       
-      // Perform hybrid search
-      const results = await hybridSearchDocuments({
-        queryVector,
-        queryText: query,
+      const findResult = await client.find({
+        query,
+        targetUri,
         limit,
-        scope: { userId }
+        mode: 'hybrid',
       });
       
-      return { results };
+      return { results: findResult.memories };
     } catch (error) {
-      // Return error info when embedding fails
+      // Return error info when search fails
       return {
         results: [],
-        error: `embedding_failed: ${error instanceof Error ? error.message : 'unknown error'}`
+        error: `search_failed: ${error instanceof Error ? error.message : 'unknown error'}`
       };
     }
   },

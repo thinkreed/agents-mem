@@ -8,10 +8,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@lancedb/lancedb": "latest",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "apache-arrow": "^21.1.0",
-    "jieba-wasm": "^2.4.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
