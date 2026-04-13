@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-13T02:10:00
+**Generated:** 2026-04-13T03:00:00
 **Commit:** Latest
-**Branch:** feature/logging-integration
+**Branch:** fix/search-failure-fts-index
 
 ## OVERVIEW
 
@@ -49,6 +49,9 @@ src/
 | **AuditLogger** | `src/utils/audit_logger.ts` | NEW: CRUD audit trail |
 | **Logger config** | `src/utils/config.ts` | NEW: Env var parser |
 | **Shutdown** | `src/utils/shutdown.ts` | NEW: Graceful handlers |
+| **FTS index creation** | `src/lance/index.ts` | createFTSIndex() function |
+| **Chinese segmenter** | `src/utils/chinese_segmenter.ts` | jieba-wasm for Chinese FTS |
+| **Document storage** | `src/materials/store.ts` | Queues embedding + FTS jobs |
 
 ## CODE MAP
 
@@ -70,6 +73,10 @@ src/
 | **AuditLogger** | class | utils/audit_logger.ts | NEW: Audit trail |
 | **getLogBuffer** | function | utils/log_buffer.ts | NEW: Singleton buffer |
 | **getAuditLogger** | function | utils/audit_logger.ts | NEW: Singleton audit |
+| **createFTSIndex** | function | lance/index.ts:50-55 | FTS index creation |
+| **segmentChinese** | function | utils/chinese_segmenter.ts | Chinese text segmentation |
+| **checkFTSIndexExists** | function | lance/hybrid_search.ts | FTS index verification |
+| **content_segmented** | field | lance/schema.ts | Segmented Chinese content |
 
 ## CONVENTIONS
 
@@ -82,6 +89,9 @@ src/
 - **Token budgets**: L0=100, L1=2000
 - **Async queue**: Background jobs for embedding/FTS index (maxRetries=3)
 - **Log buffer**: Async queue 1000, flush 5s, audit sampling rate 1.0
+- **FTS indexing**: Async job queue (not synchronous), dual FTS on content + content_segmented
+- **Chinese queries**: Pre-segmented via jieba-wasm (FTS doesn't support Chinese natively)
+- **Job retries**: maxRetries=3, retryDelay=100ms
 
 ## ERROR MESSAGES
 
@@ -129,3 +139,37 @@ docker-compose run agents-mem-test bun test tests/lance  # LanceDB tests
 - **MCP stdio**: Server runs as subprocess, not HTTP
 - **Ollama required**: Embeddings need localhost:11434
 - **Storage**: `~/.agents_mem/` (SQLite + LanceDB vectors)
+
+## Troubleshooting
+
+### Search Returns Empty Results
+
+**Symptom:** Document stored successfully, but hybrid/FTS search returns `[]`
+
+**Causes:**
+1. FTS index not yet created (async processing delay)
+2. Embedding service unavailable (Ollama not running)
+3. Scope mismatch (searching with different userId)
+
+**Fixes:**
+1. Wait 5 seconds and retry (FTS index creation)
+2. Verify Ollama: `curl http://localhost:11434/api/tags`
+3. Check scope matches document scope: `{ userId: '...' }`
+
+**Debug:**
+```typescript
+// Check if FTS index exists - search with empty results is expected
+// if FTS hasn't been created yet
+// Force rebuild via hybrid search (automatic in checkAndRebuild)
+```
+
+### Chinese Search Issues
+
+**Symptom:** Chinese queries return no results or poor results
+
+**Cause:** LanceDB FTS doesn't support Chinese word segmentation natively
+
+**Workaround:**
+- Use `searchMode: 'hybrid'` (relies on vector search)
+- Embeddings support Chinese semantically via nomic-embed-text
+- Chinese content is pre-segmented and stored in `content_segmented` field

@@ -46,12 +46,28 @@ export async function createVectorIndex(tableName: string): Promise<void> {
 
 /**
  * Create FTS index on table
+ * For documents_vec, creates indexes on both 'content' and 'content_segmented' columns
+ * to support both English and Chinese full-text search.
  */
 export async function createFTSIndex(tableName: string, column: string): Promise<void> {
   const table = await getTable(tableName);
   
-  // Create BM25-based FTS index using LanceDB Index.fts()
-  await table.createIndex(column, { config: Index.fts() });
+  // For documents_vec, create FTS index on both columns for full coverage
+  if (tableName === 'documents_vec' && column === 'content') {
+    // Create FTS index on original content (for English and general search)
+    await table.createIndex('content', { config: Index.fts() });
+    
+    // Create FTS index on segmented content (for Chinese search)
+    try {
+      await table.createIndex('content_segmented', { config: Index.fts() });
+    } catch {
+      // content_segmented may not exist or be all null, ignore error
+      console.log(`Skipping content_segmented FTS index for ${tableName}`);
+    }
+  } else {
+    // Create BM25-based FTS index using LanceDB Index.fts()
+    await table.createIndex(column, { config: Index.fts() });
+  }
 }
 
 /**

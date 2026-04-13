@@ -55,11 +55,25 @@ export async function storeDocument(input: {
   
   // Queue async embedding generation
   const queue = getEmbeddingQueue();
+  
+  // Queue embedding job (generates vector for semantic search)
   await queue.addJob({
     type: 'embedding',
     resourceId: doc.id,
     resourceType: 'document',
     payload: { content: input.content, title: input.title },
+    userId: input.userId,
+    agentId: input.agentId,
+    teamId: input.teamId
+  });
+  
+  // Queue FTS index job (creates BM25 index for keyword search)
+  // This ensures both vector and FTS search work after document creation
+  await queue.addJob({
+    type: 'fts_index',
+    resourceId: doc.id,
+    resourceType: 'document',
+    payload: { tableName: 'documents_vec', column: 'content' },
     userId: input.userId,
     agentId: input.agentId,
     teamId: input.teamId

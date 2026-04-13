@@ -59,7 +59,8 @@ function vectorField(name: string, dimension: number, nullable: boolean = true):
 export function createDocumentsVecSchema(): Schema {
   return new Schema([
     stringField('id', false),           // Primary key
-    stringField('content', false),      // Document content
+    stringField('content', false),      // Document content (original)
+    stringField('content_segmented'),   // Segmented content for Chinese FTS (NEW)
     vectorField('vector', EMBED_DIMENSION, false), // Embedding vector
     stringField('title'),
     stringField('user_id'),

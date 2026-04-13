@@ -309,4 +309,73 @@ reason → reason (错误消息)
 
 ---
 
+## 十一、FTS 索引创建 (2026-04-13 新增)
+
+### 11.1 问题背景
+
+**原始问题**: 文档存入成功后，hybrid/FTS 搜索返回空结果，只能通过 ID 直接读取。
+
+**根本原因**: 
+- `storeDocument()` 只排队 `embedding` job，没有排队 `fts_index` job
+- LanceDB `fullTextSearch()` 需要 FTS 索引才能工作
+- `checkAndRebuild()` 只重建向量索引，不创建 FTS 索引
+
+### 11.2 设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| FTS 索引创建时机 | 异步排队 + 结果反馈 | 文档创建立即返回，FTS 索引后台处理 |
+| 中文支持 | 预处理分词 (jieba-wasm) | LanceDB/Tantivy 不支持外部 tokenizer |
+| 索引重建策略 | A+B 双重防御 | 主动检查 + 搜索失败后重建 |
+
+### 11.3 实现方案
+
+**FTS 索引创建流程:**
+```
+storeDocument() → queue.addJob({ type: 'fts_index', ... }) → 
+EmbeddingQueue.processFtsIndex() → createFTSIndex() → 
+FTS 索引创建完成
+```
+
+**中文分词处理:**
+```
+detectChineseContent(content) → true →
+segmentChinese(content) via jieba-wasm →
+存储到 content_segmented 字段 →
+FTS 索引同时覆盖 content 和 content_segmented
+```
+
+**checkAndRebuild FTS 验证:**
+```
+1. 检查 FTS 索引存在性 (checkFTSIndexExists)
+2. 不存在 → 创建 FTS 索引
+3. hybridSearch 失败 → fallback 到 vector search
+```
+
+### 11.4 新增组件
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| 中文分词器 | `src/utils/chinese_segmenter.ts` | jieba-wasm 分词 |
+| FTS 索引字段 | `src/lance/schema.ts` | content_segmented 字段 |
+| FTS 索引队列 | `src/queue/embedding_queue.ts` | processFtsIndex() |
+| FTS 索引验证 | `src/lance/hybrid_search.ts` | checkFTSIndexExists() |
+
+### 11.5 LanceDB FTS 配置
+
+**可用参数 (FtsOptions):**
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| baseTokenizer | string | "simple" | 分词器: simple/whitespace/raw/ngram |
+| language | string | "English" | Stemming 语言 |
+| stem | boolean | true | 是否 stemming |
+| removeStopWords | boolean | true | 移除停用词 |
+| lowercase | boolean | true | 小写转换 |
+| asciiFolding | boolean | true | ASCII 折叠 |
+| withPosition | boolean | false | 存储位置信息 |
+
+**中文限制**: LanceDB/Tantivy 不原生支持中文 tokenizer，需预处理。
+
+---
+
 **文档结束**

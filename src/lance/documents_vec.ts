@@ -6,6 +6,7 @@
 import { getTable } from './connection';
 import { Scope } from '../core/types';
 import { ScopeFilter } from '../core/scope';
+import { segmentChinese, detectChineseContent } from '../utils/chinese_segmenter';
 
 /**
  * Document vector record
@@ -13,6 +14,7 @@ import { ScopeFilter } from '../core/scope';
 export interface DocumentVectorRecord {
   id: string;
   content: string;
+  content_segmented?: string; // Segmented content for Chinese FTS (NEW)
   vector: Float32Array;
   title: string;
   user_id: string;
@@ -27,14 +29,21 @@ export interface DocumentVectorRecord {
 }
 
 /**
- * Add document vector
+ * Add document vector with Chinese text segmentation
  */
 export async function addDocumentVector(record: DocumentVectorRecord): Promise<void> {
   const table = await getTable('documents_vec');
   
+  // Segment Chinese content for FTS indexing
+  let contentSegmented = record.content_segmented;
+  if (!contentSegmented && detectChineseContent(record.content)) {
+    contentSegmented = await segmentChinese(record.content);
+  }
+  
   const data = {
     id: record.id,
     content: record.content,
+    content_segmented: contentSegmented ?? null, // Segmented Chinese content
     vector: Array.from(record.vector), // LanceDB expects array, not Float32Array
     title: record.title,
     user_id: record.user_id,

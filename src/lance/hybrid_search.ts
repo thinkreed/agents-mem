@@ -21,6 +21,7 @@ import { getDocumentsByScope, DocumentRecord } from '../sqlite/documents';
 import { getEmbedding } from '../embedder/ollama';
 import { createDocumentsVecSchema } from './schema';
 import { isConnectionOpen as isSQLiteOpen, closeConnection as closeSQLiteConnection } from '../sqlite/connection';
+import { createFTSIndex } from './index';
 
 /**
  * Hybrid search result
@@ -258,8 +259,31 @@ export async function rebuildTable(tableName: string, scope?: Scope, clearExisti
 }
 
 /**
+ * Check if FTS index exists by attempting a test FTS search
+ * Returns true if FTS index exists, false if missing or error
+ */
+async function checkFTSIndexExists(tableName: string, column: string): Promise<boolean> {
+  try {
+    const table = await getTable(tableName);
+    // Try a minimal FTS search to check if index exists
+    // If index missing, this will throw an error
+    const testQuery = table.query()
+      .fullTextSearch('test')
+      .limit(1);
+    await testQuery.toArray();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check if table exists and rebuild if missing
- * Returns result indicating whether rebuild was triggered
+ * Includes FTS index verification (Decision 3: A+B strategy)
+ * 
+ * Strategy:
+ * - A: Proactively check FTS index existence via test query
+ * - B: Search failure triggers rebuild (handled in hybridSearch fallback)
  */
 export async function checkAndRebuild(tableName: string, scope?: Scope): Promise<CheckAndRebuildResult> {
   // Check if table exists
@@ -276,11 +300,37 @@ export async function checkAndRebuild(tableName: string, scope?: Scope): Promise
         if (sqliteDocs.length > lanceCount) {
           // Pass clearExisting=true to remove stale vectors before rebuilding
           const result = await rebuildTable(tableName, scope, true);
+          if (result.success) {
+            // After successful rebuild, create FTS index
+            try {
+              await createFTSIndex(tableName, 'content');
+              console.log(`FTS index created for ${tableName} after rebuild`);
+            } catch (ftsErr) {
+              console.warn(`FTS index creation failed after rebuild:`, ftsErr);
+            }
+          }
           return {
             rebuilt: result.success,
             error: result.error,
-            reason: result.success ? 'incomplete rebuild detected' : result.reason
+            reason: result.success ? 'incomplete rebuild detected, FTS index refreshed' : result.reason
           };
+        }
+        
+        // Decision 3A: Proactively check FTS index existence
+        const ftsExists = await checkFTSIndexExists(tableName, 'content');
+        if (!ftsExists && lanceCount > 0) {
+          // FTS index missing but has data - create it
+          try {
+            await createFTSIndex(tableName, 'content');
+            console.log(`FTS index created for ${tableName} (was missing)`);
+            return {
+              rebuilt: true,
+              reason: 'FTS index missing, created successfully'
+            };
+          } catch (ftsErr) {
+            console.warn(`FTS index creation failed:`, ftsErr);
+            // Continue without FTS, will fallback to vector search
+          }
         }
       } catch {
         // Ignore comparison errors, table exists
@@ -297,16 +347,25 @@ export async function checkAndRebuild(tableName: string, scope?: Scope): Promise
   // Table missing - trigger rebuild
   const result = await rebuildTable(tableName, scope);
   
+  // After successful rebuild, create FTS index
+  if (result.success && result.documentsProcessed > 0) {
+    try {
+      await createFTSIndex(tableName, 'content');
+      console.log(`FTS index created for ${tableName} after table creation`);
+    } catch (ftsErr) {
+      console.warn(`FTS index creation failed after rebuild:`, ftsErr);
+    }
+  }
+  
   return {
     rebuilt: result.success,
     error: result.error,
-    reason: result.success ? 'table missing, rebuilt successfully' : result.reason
+    reason: result.success ? 'table missing, rebuilt with FTS index' : result.reason
   };
 }
 
 /**
  * Perform hybrid search (vector + FTS)
->>>>>>> fix/vector-index-init
  */
 export async function hybridSearch(options: HybridSearchOptions): Promise<HybridSearchResult[]> {
   const table = await getTable(options.tableName);
