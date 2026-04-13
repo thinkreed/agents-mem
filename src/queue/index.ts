@@ -3,21 +3,23 @@
  * @description Queue module exports
  */
 
-export * from './types';
 import { EmbeddingQueue } from './embedding_queue';
 import type { QueueJobConfig } from './types';
 
-/**
- * Singleton queue instance
- */
-let queueInstance: EmbeddingQueue | null = null;
+export * from './types';
+export { EmbeddingQueue };
 
 /**
- * Get embedding queue singleton
+ * Global singleton for EmbeddingQueue
+ */
+let embeddingQueueInstance: EmbeddingQueue | null = null;
+
+/**
+ * Get or create the global EmbeddingQueue singleton
  */
 export function getEmbeddingQueue(config?: Partial<QueueJobConfig>): EmbeddingQueue {
-  if (!queueInstance) {
-    queueInstance = new EmbeddingQueue(config);
+  if (!embeddingQueueInstance) {
+    embeddingQueueInstance = new EmbeddingQueue(config);
   }
-  return queueInstance;
+  return embeddingQueueInstance;
 }
