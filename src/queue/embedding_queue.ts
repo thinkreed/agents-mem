@@ -7,6 +7,7 @@ import { createJob, getJob as dbGetJob, updateJob, getPendingJobs as dbGetPendin
 import { getEmbedding } from '../embedder/ollama';
 import { addDocumentVector } from '../lance/documents_vec';
 import { createFTSIndex } from '../lance/index';
+import { recordToJob, jobToRecord } from './converters';
 import type {
   QueueJob,
   JobType,
@@ -45,16 +46,30 @@ export class EmbeddingQueue {
     // Try to persist to SQLite if available
     let job: QueueJob;
     try {
-      const dbJob = await createJob({
+      // Create proper job object first
+      const newJob: QueueJob = {
+        id: '',  // Will be set by DB
         type: options.type,
+        status: 'pending',
         resourceId: options.resourceId,
         resourceType: options.resourceType,
         payload: options.payload || {},
+        retries: 0,
+        createdAt: Date.now(),
         userId: options.userId,
         agentId: options.agentId,
         teamId: options.teamId,
+      };
+      const record = jobToRecord(newJob);
+      const dbRecord = createJob({
+        type: record.type!,
+        payload: record.payload!,
+        user_id: record.user_id!,
+        agent_id: record.agent_id,
+        team_id: record.team_id,
       });
-      job = dbJob;
+      job = recordToJob(dbRecord);
+      job.id = dbRecord.id;  // Use DB-generated ID
     } catch {
       // Fallback to in-memory if SQLite unavailable
       job = {
@@ -72,6 +87,13 @@ export class EmbeddingQueue {
       };
     }
 
+    // Store payload fields in job.payload for consistency
+    job.payload = {
+      ...job.payload,
+      resourceId: job.resourceId,
+      resourceType: job.resourceType,
+    };
+
     this.jobs.set(job.id, job);
     this.emitEvent('job_added', job);
     return job;
@@ -87,8 +109,9 @@ export class EmbeddingQueue {
 
     // Try SQLite
     try {
-      const dbJob = await dbGetJob(id);
-      if (dbJob) {
+      const dbJobRecord = await dbGetJob(id);
+      if (dbJobRecord) {
+        const dbJob = recordToJob(dbJobRecord);
         this.jobs.set(dbJob.id, dbJob);
         return dbJob;
       }
@@ -105,7 +128,8 @@ export class EmbeddingQueue {
   async getPendingJobs(): Promise<QueueJob[]> {
     // Try SQLite first
     try {
-      const dbJobs = await dbGetPendingJobs();
+      const dbJobsRecords = await dbGetPendingJobs();
+      const dbJobs = dbJobsRecords.map(recordToJob);
       for (const job of dbJobs) {
         this.jobs.set(job.id, job);
       }
@@ -125,7 +149,8 @@ export class EmbeddingQueue {
 
     // Try SQLite
     try {
-      const dbJobs = await dbGetJobsByStatus(status);
+      const dbJobsRecords = await dbGetJobsByStatus(status);
+      const dbJobs = dbJobsRecords.map(recordToJob);
       for (const job of dbJobs) {
         this.jobs.set(job.id, job);
       }
@@ -168,7 +193,7 @@ export class EmbeddingQueue {
 
     // Update in SQLite if available
     try {
-      await updateJob(currentJob.id, { status: 'processing', startedAt: currentJob.startedAt });
+      await updateJob(currentJob.id, 'processing');
     } catch {
       // Continue without SQLite
     }
@@ -236,7 +261,7 @@ export class EmbeddingQueue {
 
     // Update in SQLite if available
     try {
-      await updateJob(job.id, { status: 'completed', completedAt: job.completedAt });
+      await updateJob(job.id, 'completed');
     } catch {
       // Continue without SQLite
     }
@@ -258,7 +283,7 @@ export class EmbeddingQueue {
 
       // Update in SQLite if available
       try {
-        await updateJob(job.id, { status: 'pending', retries: job.retries, error: error.message });
+        await updateJob(job.id, 'pending', job.retries, undefined, error.message);
       } catch {
         // Continue without SQLite
       }
@@ -274,7 +299,7 @@ export class EmbeddingQueue {
 
       // Update in SQLite if available
       try {
-        await updateJob(job.id, { status: 'failed', retries: job.retries, error: error.message, completedAt: job.completedAt });
+        await updateJob(job.id, 'failed', job.retries, undefined, error.message);
       } catch {
         // Continue without SQLite
       }

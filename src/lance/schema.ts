@@ -168,32 +168,6 @@ export function createTieredVecSchema(): Schema {
 }
 
 // ============================================================================
-// Assets Vector Schema
-// ============================================================================
-
-/**
- * Assets vector table schema for LanceDB
- * Stores asset/file embeddings with metadata
- */
-export function createAssetsVecSchema(): Schema {
-  return new Schema([
-    stringField('id', false),           // Primary key
-    stringField('content', false),      // Asset content/description
-    vectorField('vector', EMBED_DIMENSION, false), // Embedding vector
-    stringField('file_name'),
-    stringField('mime_type'),
-    stringField('file_path'),
-    stringField('user_id'),
-    stringField('agent_id'),
-    stringField('team_id'),
-    booleanField('is_global'),
-    stringField('asset_type'),
-    numberField('file_size'),
-    timestampField('created_at')
-  ]);
-}
-
-// ============================================================================
 // Schema Registry
 // ============================================================================
 

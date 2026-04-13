@@ -8,6 +8,7 @@ import { beforeEach, afterEach, vi } from 'vitest';
 
 // Clear mock call history before each test
 beforeEach(() => {
+  vi.resetModules();
   vi.clearAllMocks();
 });
 

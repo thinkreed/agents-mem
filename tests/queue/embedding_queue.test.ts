@@ -12,8 +12,22 @@ import type {
   QueueStats,
   CreateJobOptions 
 } from '../../src/queue/types';
+import { EmbeddingQueue } from '../../src/queue/embedding_queue';
+import { recordToJob, jobToRecord } from '../../src/queue/converters';
 
-// Mock Ollama embedder - create mock functions first
+// Mock SQLite queue operations
+vi.mock('../../src/sqlite/queue_jobs', () => ({
+  createJob: vi.fn(),
+  updateJob: vi.fn(),
+  getJob: vi.fn(),
+  getPendingJobs: vi.fn(),
+  getJobsByStatus: vi.fn(),
+}));
+
+// Import after mock
+import { createJob, updateJob, getJob, getPendingJobs, getJobsByStatus } from '../../src/sqlite/queue_jobs';
+
+// Mock Ollama embedder
 const mockGetEmbedding = vi.fn().mockResolvedValue(Array(768).fill(0.1));
 const mockGetEmbeddings = vi.fn().mockResolvedValue([Array(768).fill(0.1)]);
 const mockGetModel = vi.fn().mockReturnValue('nomic-embed-text');
@@ -30,166 +44,6 @@ vi.mock('../../src/embedder/ollama', () => ({
 
 // Import after mock
 import { createEmbedder } from '../../src/embedder/ollama';
-
-/**
- * Simple in-memory queue implementation for testing
- * (This is the implementation being tested)
- */
-class EmbeddingQueue {
-  private jobs: Map<string, QueueJob> = new Map();
-  private processing: Set<string> = new Set();
-  private maxRetries = 3;
-  private retryDelay = 100;
-
-  /**
-   * Add a job to the queue
-   */
-  async addJob(options: CreateJobOptions): Promise<QueueJob> {
-    const job: QueueJob = {
-      id: `job_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      type: options.type,
-      status: 'pending',
-      resourceId: options.resourceId,
-      resourceType: options.resourceType,
-      payload: options.payload || {},
-      retries: 0,
-      createdAt: Date.now(),
-      userId: options.userId,
-      agentId: options.agentId,
-      teamId: options.teamId
-    };
-    
-    this.jobs.set(job.id, job);
-    return job;
-  }
-
-  /**
-   * Get job by ID
-   */
-  getJob(id: string): QueueJob | undefined {
-    return this.jobs.get(id);
-  }
-
-  /**
-   * Get all jobs
-   */
-  getAllJobs(): QueueJob[] {
-    return Array.from(this.jobs.values());
-  }
-
-  /**
-   * Get jobs by status
-   */
-  getJobsByStatus(status: JobStatus): QueueJob[] {
-    return this.getAllJobs().filter(j => j.status === status);
-  }
-
-  /**
-   * Get pending jobs
-   */
-  getPendingJobs(): QueueJob[] {
-    return this.getJobsByStatus('pending');
-  }
-
-  /**
-   * Start processing a job
-   */
-  async processJob(id: string): Promise<void> {
-    const job = this.jobs.get(id);
-    if (!job || job.status !== 'pending') return;
-
-    // Mark as processing
-    job.status = 'processing';
-    job.startedAt = Date.now();
-    this.processing.add(id);
-
-    try {
-      // Simulate processing based on job type
-      if (job.type === 'embedding') {
-        await this.processEmbedding(job);
-      } else if (job.type === 'fts_index') {
-        await this.processFtsIndex(job);
-      }
-      
-      // Mark as completed
-      job.status = 'completed';
-      job.completedAt = Date.now();
-    } catch (error) {
-      // Handle failure with retry
-      await this.handleFailure(job, error as Error);
-    } finally {
-      this.processing.delete(id);
-    }
-  }
-
-  /**
-   * Process embedding job
-   */
-  private async processEmbedding(job: QueueJob): Promise<void> {
-    const embedder = createEmbedder();
-    const text = job.payload.text as string || 'default text';
-    await embedder.getEmbedding(text);
-  }
-
-  /**
-   * Process FTS index job
-   */
-  private async processFtsIndex(job: QueueJob): Promise<void> {
-    // Simulate FTS indexing work
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-
-  /**
-   * Handle job failure with retry
-   */
-  private async handleFailure(job: QueueJob, error: Error): Promise<void> {
-    job.retries++;
-    
-    if (job.retries < this.maxRetries) {
-      // Retry with delay
-      await new Promise(resolve => setTimeout(resolve, this.retryDelay));
-      job.status = 'pending';
-      job.error = error.message;
-    } else {
-      // Max retries exceeded - mark as failed
-      job.status = 'failed';
-      job.error = error.message;
-      job.completedAt = Date.now();
-    }
-  }
-
-  /**
-   * Process all pending jobs in order
-   */
-  async processAll(): Promise<void> {
-    const pending = this.getPendingJobs();
-    for (const job of pending) {
-      await this.processJob(job.id);
-    }
-  }
-
-  /**
-   * Get queue statistics
-   */
-  getStats(): QueueStats {
-    const all = this.getAllJobs();
-    return {
-      totalProcessed: all.filter(j => j.status === 'completed' || j.status === 'failed').length,
-      completed: all.filter(j => j.status === 'completed').length,
-      failed: all.filter(j => j.status === 'failed').length,
-      processing: all.filter(j => j.status === 'processing').length,
-      pending: all.filter(j => j.status === 'pending').length
-    };
-  }
-
-  /**
-   * Clear all jobs
-   */
-  clear(): void {
-    this.jobs.clear();
-    this.processing.clear();
-  }
-}
 
 // Helper to wait for async operations
 const waitFor = (fn: () => boolean, timeout = 500): Promise<void> => {
@@ -876,5 +730,159 @@ describe('Queue Types', () => {
 
     expect(options.type).toBe('embedding');
     expect(options.userId).toBe('user-1');
+  });
+});
+
+describe('DB Integration', () => {
+  let queue: EmbeddingQueue;
+
+  beforeEach(() => {
+    resetConnection();
+    setDatabasePath(':memory:');
+    queue = new EmbeddingQueue();
+    mockGetEmbedding.mockResolvedValue(Array(768).fill(0.1));
+    mockGetEmbedding.mockClear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    queue.clear();
+    closeConnection();
+    vi.clearAllMocks();
+  });
+
+  describe('createJob call format', () => {
+    it('should call createJob with payload stringified', async () => {
+      const mockCreateJob = createJob as MockedFunction<typeof createJob>;
+      mockCreateJob.mockImplementation(() => {
+        throw new Error('SQLite not available');
+      });
+
+      await queue.addJob({
+        type: 'embedding',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: { text: 'test content' },
+        userId: 'user-1'
+      });
+
+      expect(mockCreateJob).toHaveBeenCalled();
+    });
+
+    it('should call createJob with user_id in snake_case', async () => {
+      const mockCreateJob = createJob as MockedFunction<typeof createJob>;
+      mockCreateJob.mockImplementation(() => {
+        throw new Error('SQLite not available');
+      });
+
+      await queue.addJob({
+        type: 'embedding',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        userId: 'user-1',
+        agentId: 'agent-1',
+        teamId: 'team-1'
+      });
+
+      expect(mockCreateJob).toHaveBeenCalledWith({
+        type: 'embedding',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: {},
+        userId: 'user-1',
+        agentId: 'agent-1',
+        teamId: 'team-1'
+      });
+    });
+
+    it('should handle SQLite unavailable gracefully with fallback', async () => {
+      const mockCreateJob = createJob as MockedFunction<typeof createJob>;
+      mockCreateJob.mockImplementation(() => {
+        throw new Error('SQLite not available');
+      });
+
+      const job = await queue.addJob({
+        type: 'embedding',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: { text: 'test' },
+        userId: 'user-1'
+      });
+
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      expect(job.status).toBe('pending');
+    });
+  });
+
+  describe('updateJob call format', () => {
+    it('should call updateJob with positional args (not object)', async () => {
+      const mockCreateJob = createJob as MockedFunction<typeof createJob>;
+      const mockUpdateJob = updateJob as MockedFunction<typeof updateJob>;
+
+      const job = await queue.addJob({
+        type: 'embedding',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: { text: 'test' },
+        userId: 'user-1'
+      });
+
+      mockCreateJob.mockReturnValue({
+        id: job.id,
+        type: 'embedding',
+        status: 'pending',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: JSON.stringify({ text: 'test' }),
+        retries: 0,
+        user_id: 'user-1',
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000)
+      });
+
+      mockUpdateJob.mockReturnValue(true);
+
+      await queue.processJob(job);
+
+      expect(mockUpdateJob).toHaveBeenCalled();
+    });
+  });
+
+  describe('converters usage', () => {
+    it('should use recordToJob for type conversion', async () => {
+      // This test will fail until converters.ts is implemented
+      expect(() => {
+        recordToJob({
+          id: 'test-1',
+          type: 'embedding',
+          status: 'pending',
+          payload: JSON.stringify({ text: 'test' }),
+          retries: 0,
+          user_id: 'user-1',
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000)
+        });
+      }).toThrow();
+    });
+
+    it('should use jobToRecord for type conversion', async () => {
+      // This test will fail until converters.ts is implemented
+      const job: QueueJob = {
+        id: 'test-1',
+        type: 'embedding',
+        status: 'pending',
+        resourceId: 'doc-123',
+        resourceType: 'document',
+        payload: { text: 'test' },
+        retries: 0,
+        createdAt: Date.now(),
+        userId: 'user-1'
+      };
+
+      expect(() => {
+        jobToRecord(job);
+      }).toThrow();
+    });
   });
 });

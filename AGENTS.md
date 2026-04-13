@@ -43,6 +43,7 @@ src/
 | Fact verification | `src/facts/verifier.ts` | Cross-check with sources |
 | Fact linking | `src/facts/linker.ts` | Deduplication |
 | **Background queue** | `src/queue/embedding_queue.ts` | NEW: Async embedding jobs |
+| **Queue converters** | `src/queue/converters.ts` | NEW: Type conversions |
 | **Queue jobs CRUD** | `src/sqlite/queue_jobs.ts` | NEW: Job persistence |
 
 ## CODE MAP
@@ -61,6 +62,8 @@ src/
 | **EmbeddingQueue** | class | queue/embedding_queue.ts | NEW: Async job queue |
 | **getEmbeddingQueue** | function | queue/index.ts | NEW: Singleton queue |
 | **QueueJob** | interface | queue/types.ts | NEW: Job definition |
+| **recordToJob** | function | queue/converters.ts | NEW: Type converter (DB → TS) |
+| **jobToRecord** | function | queue/converters.ts | NEW: Type converter (TS → DB) |
 
 ## CONVENTIONS
 

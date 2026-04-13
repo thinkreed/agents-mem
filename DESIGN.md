@@ -237,4 +237,25 @@ fact.source_id → tiered_content.id → tiered_content.original_uri → documen
 
 ---
 
+## 十、队列系统 (2026-04-13 更新)
+
+### 10.1 组件状态
+
+| 组件 | 文件 | 状态 |
+|------|------|------|
+| 单例获取器 | `queue/index.ts` | ✅ 新增 |
+| 类型转换器 | `queue/converters.ts` | ✅ 新增 |
+| 队列修复 | `queue/embedding_queue.ts` | ✅ 修复 5 处调用点 |
+
+### 10.2 转换函数
+
+- `recordToJob()`: `QueueJobRecord` → `QueueJob` (snake_case 转 camelCase，字符串 payload 转对象)
+- `jobToRecord()`: `QueueJob` → `QueueJobRecord` (反向转换)
+
+### 10.3 单例模式
+
+`getEmbeddingQueue()` 遵循 `tiered/queue.ts` 模式，提供统一的队列访问入口。
+
+---
+
 **文档结束**

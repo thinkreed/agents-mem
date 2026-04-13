@@ -4,4 +4,20 @@
  */
 
 export * from './types';
-export { EmbeddingQueue } from './embedding_queue';
+import { EmbeddingQueue } from './embedding_queue';
+import type { QueueJobConfig } from './types';
+
+/**
+ * Singleton queue instance
+ */
+let queueInstance: EmbeddingQueue | null = null;
+
+/**
+ * Get embedding queue singleton
+ */
+export function getEmbeddingQueue(config?: Partial<QueueJobConfig>): EmbeddingQueue {
+  if (!queueInstance) {
+    queueInstance = new EmbeddingQueue(config);
+  }
+  return queueInstance;
+}
