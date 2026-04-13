@@ -57,6 +57,21 @@ export interface LogMetadata {
 }
 
 /**
+ * Audit metadata for CRUD operations
+ * Records only metadata (no sensitive content)
+ */
+export interface AuditMetadata {
+  userId: string;
+  agentId?: string;
+  teamId?: string;
+  resourceType: 'document' | 'asset' | 'conversation' | 'message' | 'fact' | 'team';
+  resourceId: string;
+  operation: 'create' | 'read' | 'update' | 'delete';
+  success: boolean;
+  reason?: string;
+}
+
+/**
  * Timer class for performance logging
  */
 export class LogTimer {
