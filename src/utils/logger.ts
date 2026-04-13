@@ -3,34 +3,72 @@
  * @description Structured logging utility for agents-mem
  */
 
+import { parseLoggerConfig } from './config';
+import { getLogBuffer, LogEntry } from './log_buffer';
+import { LogLevel, LogFormat, LogMetadata } from './logger_types';
+
+// Re-export types for backward compatibility (LogLevel is enum, others are types)
+export { LogLevel };
+export type { LogFormat, LogMetadata };
+
 /**
- * Log level enum
+ * Logger configuration from environment
  */
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  SILENT = 4,
+interface LoggerEnvConfig {
+  level: LogLevel;
+  format: LogFormat;
 }
 
 /**
- * Global log level (default: INFO)
+ * Log entry for JSON format
  */
-let globalLogLevel: LogLevel = LogLevel.INFO;
+interface JsonLogEntry {
+  timestamp: string;
+  level: string;
+  logger: string;
+  message: string;
+  metadata?: LogMetadata;
+}
+
+/**
+ * Global log level for explicit override
+ */
+let cachedGlobalLogLevel: LogLevel | null = null;
+
+/**
+ * Get environment config with fresh parsing
+ */
+function getEnvConfig(): LoggerEnvConfig {
+  const config = parseLoggerConfig();
+  return {
+    level: config.level,
+    format: config.format,
+  };
+}
 
 /**
  * Set global log level
  */
 export function setGlobalLogLevel(level: LogLevel): void {
-  globalLogLevel = level;
+  cachedGlobalLogLevel = level;
 }
 
 /**
- * Get global log level
+ * Get global log level - returns config level or cached override
  */
 export function getGlobalLogLevel(): LogLevel {
-  return globalLogLevel;
+  if (cachedGlobalLogLevel !== null) {
+    return cachedGlobalLogLevel;
+  }
+  const config = getEnvConfig();
+  return config.level;
+}
+
+/**
+ * Reset cached global log level (for testing)
+ */
+export function resetGlobalLogLevel(): void {
+  cachedGlobalLogLevel = null;
 }
 
 /**
@@ -47,13 +85,6 @@ export function formatTimestamp(date?: Date): string {
   const ms = String(d.getMilliseconds()).padStart(3, '0');
   
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}`;
-}
-
-/**
- * Log metadata type
- */
-export interface LogMetadata {
-  [key: string]: unknown;
 }
 
 /**
@@ -78,6 +109,8 @@ export class LogTimer {
   private name: string;
   private startTime: number;
   private logger: Logger;
+  private pausedTime: number | null = null;
+  private accumulatedPauseTime: number = 0;
   
   constructor(name: string, logger: Logger) {
     this.name = name;
@@ -86,11 +119,37 @@ export class LogTimer {
   }
   
   /**
-   * End timer and log duration
+   * Pause the timer
    */
-  end(): void {
-    const duration = Date.now() - this.startTime;
+  pause(): void {
+    if (this.pausedTime === null) {
+      this.pausedTime = Date.now();
+    }
+  }
+  
+  /**
+   * Resume the timer
+   */
+  resume(): void {
+    if (this.pausedTime !== null) {
+      this.accumulatedPauseTime += Date.now() - this.pausedTime;
+      this.pausedTime = null;
+    }
+  }
+  
+  /**
+   * End timer and log duration
+   * @returns Duration in milliseconds
+   */
+  end(): number {
+    const now = Date.now();
+    // Account for any accumulated pause time
+    const actualPauseTime = this.pausedTime !== null 
+      ? this.accumulatedPauseTime + (now - this.pausedTime)
+      : this.accumulatedPauseTime;
+    const duration = (now - this.startTime) - actualPauseTime;
     this.logger.debug(`${this.name} completed in ${duration}ms`);
+    return duration;
   }
 }
 
@@ -100,10 +159,20 @@ export class LogTimer {
 export class Logger {
   readonly name: string;
   level: LogLevel;
+  format: LogFormat;
   
-  constructor(name: string = 'default', level?: LogLevel) {
+  constructor(name: string = 'default', level?: LogLevel, format?: LogFormat) {
     this.name = name;
-    this.level = level ?? globalLogLevel;
+    // Use provided level, or cached global level, or config level
+    if (level !== undefined) {
+      this.level = level;
+    } else if (cachedGlobalLogLevel !== null) {
+      this.level = cachedGlobalLogLevel;
+    } else {
+      const config = getEnvConfig();
+      this.level = config.level;
+    }
+    this.format = format ?? getEnvConfig().format;
   }
   
   /**
@@ -123,80 +192,98 @@ export class Logger {
   /**
    * Format log message
    */
-  private formatMessage(level: string, message: string, metadata?: LogMetadata): string {
+  private formatMessage(level: LogLevel, levelStr: string, message: string, metadata?: LogMetadata): { text: string; json?: string } {
     const timestamp = formatTimestamp();
-    return `${timestamp} [${level}] [${this.name}] ${message}`;
+    
+    if (this.format === 'json') {
+      const jsonEntry: JsonLogEntry = {
+        timestamp,
+        level: levelStr,
+        logger: this.name,
+        message,
+        ...(metadata && { metadata }),
+      };
+      return {
+        text: JSON.stringify(jsonEntry),
+        json: JSON.stringify(jsonEntry),
+      };
+    }
+    
+    return {
+      text: `${timestamp} [${levelStr}] [${this.name}] ${message}`,
+    };
+  }
+  
+  /**
+   * Output log to console and buffer
+   */
+  private outputLog(level: LogLevel, levelStr: string, message: string, metadata?: LogMetadata | Error): void {
+    if (!this.shouldLog(level)) return;
+    
+    const formatted = this.formatMessage(level, levelStr, message, metadata instanceof Error ? { error: metadata.message, stack: metadata.stack } : metadata);
+    
+    // Synchronous console output
+    if (metadata instanceof Error) {
+      if (level === LogLevel.DEBUG) console.debug(formatted.text, metadata.message, metadata.stack);
+      else if (level === LogLevel.INFO) console.info(formatted.text, metadata.message, metadata.stack);
+      else if (level === LogLevel.WARN) console.warn(formatted.text, metadata.message, metadata.stack);
+      else if (level === LogLevel.ERROR) console.error(formatted.text, metadata.message, metadata.stack);
+    } else if (metadata) {
+      if (level === LogLevel.DEBUG) console.debug(formatted.text, metadata);
+      else if (level === LogLevel.INFO) console.info(formatted.text, metadata);
+      else if (level === LogLevel.WARN) console.warn(formatted.text, metadata);
+      else if (level === LogLevel.ERROR) console.error(formatted.text, metadata);
+    } else {
+      if (level === LogLevel.DEBUG) console.debug(formatted.text);
+      else if (level === LogLevel.INFO) console.info(formatted.text);
+      else if (level === LogLevel.WARN) console.warn(formatted.text);
+      else if (level === LogLevel.ERROR) console.error(formatted.text);
+    }
+    
+    // Async buffered output (don't block)
+    const buffer = getLogBuffer();
+    const entry: LogEntry = {
+      level,
+      message,
+      timestamp: Date.now(),
+      metadata: metadata instanceof Error ? { error: metadata.message } : metadata,
+    };
+    buffer.enqueue(entry);
   }
   
   /**
    * Log debug message
    */
   debug(message: string, metadata?: LogMetadata | Error): void {
-    if (!this.shouldLog(LogLevel.DEBUG)) return;
-    
-    const formatted = this.formatMessage('DEBUG', message);
-    if (metadata instanceof Error) {
-      console.debug(formatted, metadata.message, metadata.stack);
-    } else if (metadata) {
-      console.debug(formatted, metadata);
-    } else {
-      console.debug(formatted);
-    }
+    this.outputLog(LogLevel.DEBUG, 'DEBUG', message, metadata);
   }
   
   /**
    * Log info message
    */
   info(message: string, metadata?: LogMetadata | Error): void {
-    if (!this.shouldLog(LogLevel.INFO)) return;
-    
-    const formatted = this.formatMessage('INFO', message);
-    if (metadata instanceof Error) {
-      console.info(formatted, metadata.message, metadata.stack);
-    } else if (metadata) {
-      console.info(formatted, metadata);
-    } else {
-      console.info(formatted);
-    }
+    this.outputLog(LogLevel.INFO, 'INFO', message, metadata);
   }
   
   /**
    * Log warn message
    */
   warn(message: string, metadata?: LogMetadata | Error): void {
-    if (!this.shouldLog(LogLevel.WARN)) return;
-    
-    const formatted = this.formatMessage('WARN', message);
-    if (metadata instanceof Error) {
-      console.warn(formatted, metadata.message, metadata.stack);
-    } else if (metadata) {
-      console.warn(formatted, metadata);
-    } else {
-      console.warn(formatted);
-    }
+    this.outputLog(LogLevel.WARN, 'WARN', message, metadata);
   }
   
   /**
    * Log error message
    */
   error(message: string, metadata?: LogMetadata | Error): void {
-    if (!this.shouldLog(LogLevel.ERROR)) return;
-    
-    const formatted = this.formatMessage('ERROR', message);
-    if (metadata instanceof Error) {
-      console.error(formatted, metadata.message, metadata.stack);
-    } else if (metadata) {
-      console.error(formatted, metadata);
-    } else {
-      console.error(formatted);
-    }
+    this.outputLog(LogLevel.ERROR, 'ERROR', message, metadata);
   }
   
   /**
    * Create child logger with sub-name
    */
   child(subName: string): Logger {
-    return new Logger(`${this.name}:${subName}`, this.level);
+    return new Logger(`${this.name}:${subName}`, this.level, this.format);
   }
   
   /**
@@ -210,6 +297,6 @@ export class Logger {
 /**
  * Create a logger instance
  */
-export function createLogger(name: string = 'default', level?: LogLevel): Logger {
-  return new Logger(name, level);
+export function createLogger(name: string = 'default', level?: LogLevel, format?: LogFormat): Logger {
+  return new Logger(name, level, format);
 }

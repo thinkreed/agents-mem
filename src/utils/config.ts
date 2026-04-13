@@ -3,7 +3,7 @@
  * @description Logger configuration from environment variables
  */
 
-import { LogLevel } from './logger';
+import { LogLevel } from './logger_types';
 
 /**
  * Logger configuration interface
