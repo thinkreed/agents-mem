@@ -285,6 +285,7 @@ reason → reason (错误消息)
 | **审计层** | `src/utils/audit_logger.ts` | ✅ NEW |
 | **优雅关闭** | `src/utils/shutdown.ts` | ✅ NEW |
 | **CRUD 审计集成** | `src/tools/crud_handlers.ts` | ✅ NEW (24 点) |
+| **向量删除同步** | `src/tools/crud_handlers.ts` | ✅ NEW (document/asset/message/fact 删除时同步清理 LanceDB 向量) |
 
 ---
 
@@ -375,6 +376,72 @@ FTS 索引同时覆盖 content 和 content_segmented
 | withPosition | boolean | false | 存储位置信息 |
 
 **中文限制**: LanceDB/Tantivy 不原生支持中文 tokenizer，需预处理。
+
+---
+
+## 十二、向量删除同步 (2026-04-13 新增)
+
+### 12.1 问题背景
+
+**原始问题**: 删除文档时，SQLite 数据已清理，但 LanceDB 向量数据残留，导致已删除文档仍出现在搜索结果中。
+
+**根本原因**: 
+- `handleMemDelete()` 只调用 SQLite 的 `deleteDocument()` 
+- 未调用 LanceDB 的 `deleteDocumentVector()`
+- 导致向量表与 SQLite 表数据不一致
+
+### 12.2 设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| 修复范围 | document, asset, message, fact | 这 4 种资源有对应向量表 |
+| 异步策略 | 同步等待 | 代码简单，延迟影响小（毫秒级） |
+| 错误处理 | 仅记录日志，不阻塞主流程 | 向量删除失败不应阻止用户删除操作 |
+| 测试覆盖 | Mock 测试 + 集成测试 | 确保 Mock 验证 + 真实 LanceDB 验证 |
+
+### 12.3 实现方案
+
+**删除流程 (document 示例):**
+```typescript
+// SQLite 删除
+deleteDocument(id);
+deleteMemoryIndexByTarget('documents', id);
+
+// LanceDB 向量删除 (非阻塞)
+try {
+  await deleteDocumentVector(id);
+} catch (err) {
+  console.error(`Failed to delete document vector: ${(err as Error).message}`);
+}
+
+// 审计日志
+getAuditLogger().log({...});
+return successResponse({ success: true, id });
+```
+
+### 12.4 新增调用点
+
+| 资源 | 文件 | 新增调用 |
+|------|------|---------|
+| document | crud_handlers.ts:856 | `await deleteDocumentVector(id)` |
+| asset | crud_handlers.ts:901 | `await deleteAssetVector(id)` |
+| message | crud_handlers.ts:967 | `await deleteMessageVector(id)` |
+| fact | crud_handlers.ts:1010 | `await deleteFactVector(id)` |
+
+### 12.5 LanceDB 删除函数位置
+
+| 函数 | 文件 | 行号 |
+|------|------|------|
+| `deleteDocumentVector()` | `src/lance/documents_vec.ts` | 84 |
+| `deleteAssetVector()` | `src/lance/assets_vec.ts` | 68 |
+| `deleteMessageVector()` | `src/lance/messages_vec.ts` | 67 |
+| `deleteFactVector()` | `src/lance/facts_vec.ts` | 72 |
+
+### 12.6 测试覆盖
+
+- **Mock 测试**: `tests/tools/mem_delete.test.ts` - 验证向量删除函数被调用
+- **错误处理测试**: 验证向量删除失败时主流程仍成功
+- **集成测试**: `tests/tools/audit_integration.test.ts` - 真实 LanceDB 验证
 
 ---
 

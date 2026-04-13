@@ -11,12 +11,7 @@ MCP interface layer exposing 4 unified CRUD tools for 6 resource types. Acts as 
 | `mem_create` | handleMemCreate | crud_handlers.ts:62 | Create all 6 resource types |
 | `mem_read` | handleMemRead | crud_handlers.ts:191 | Read, search, list, tier, trace |
 | `mem_update` | handleMemUpdate | crud_handlers.ts:432 | Update with scope validation |
-| `mem_delete` | handleMemDelete | crud_handlers.ts:553 | Delete with cascade handling |
-| `scope_set` | handlers.ts:23 | handlers.ts | Set user/agent/team scope |
-| `document_save` | handlers.ts:27 | handlers.ts | Direct document store |
-| `hybrid_search` | handlers.ts:38 | handlers.ts | FTS + vector + RRF |
-| `fact_extract` | handlers.ts:66 | handlers.ts | Extract facts from source |
-| `entity_tree_*` | handlers.ts:86-111 | handlers.ts | Tree search and build |
+| `mem_delete` | handleMemDelete | crud_handlers.ts:553 | Delete with cascade handling + LanceDB vector sync |
 
 ## CONVENTIONS
 
@@ -29,6 +24,21 @@ Validation patterns used across handlers:
 - `validModes` → ['hybrid','fts','semantic','progressive']
 
 Scope enforcement: userId required for most operations. Scope mismatch throws error.
+
+## VECTOR SYNC ON DELETE
+
+When deleting resources, LanceDB vectors are also cleaned up:
+
+| Resource | SQLite Delete | LanceDB Vector Delete | Error Handling |
+|----------|--------------|----------------------|----------------|
+| document | `deleteDocument(id)` | `await deleteDocumentVector(id)` | Log error, don't block |
+| asset | `deleteAsset(id)` | `await deleteAssetVector(id)` | Log error, don't block |
+| message | `deleteMessage(id)` | `await deleteMessageVector(id)` | Log error, don't block |
+| fact | `deleteFact(id)` | `await deleteFactVector(id)` | Log error, don't block |
+| conversation | `deleteConversation(id)` | N/A (no vector table) | - |
+| team | `deleteTeam(id)` | N/A (no vector table) | - |
+
+**Design decision**: Vector deletion failures are logged but don't block the main delete flow. This ensures users can always delete resources even if LanceDB is temporarily unavailable.
 
 ## API REFERENCE
 
