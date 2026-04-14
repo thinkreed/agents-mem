@@ -12,6 +12,7 @@
     "lint:deps": "bun run scripts/lint-dependencies.ts",
     "lint:docs": "bun run scripts/lint-docs.ts",
     "doc:garden": "bun run scripts/doc-gardener.ts",
+    "nightly:audit": "bun run scripts/nightly-audit.ts",
     "clean": "bun x rimraf dist",
     "prebuild": "bun x rimraf dist"
   },

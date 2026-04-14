@@ -6,7 +6,8 @@
  * so vi.resetModules() is not needed.
  */
 
-import { beforeEach, afterEach, vi, describe: describeBun } from 'bun:test';
+// @ts-nocheck
+import { beforeEach, afterEach, vi, describe as describeBun } from 'bun:test';
 
 // Clear all mocks before each test
 beforeEach(() => {
