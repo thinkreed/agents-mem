@@ -1,532 +1,146 @@
 # agents-mem 设计文档
 
-**版本**: 1.3  
-**日期**: 2026-04-14  
-**状态**: OpenViking 集成完成，测试修复进行中
+**版本**: 2.0 | **日期**: 2026-04-14 | **状态**: OpenViking 集成完成
 
 ---
 
 ## 一、项目概述
 
-### 1.1 定位
-
 面向 **169+ agents** 的**六层渐进式披露记忆系统**，核心目标是 **Token 成本节省**。
 
-### 1.2 核心设计决策
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| 向量数据库 | OpenViking HTTP | HTTP API + 语义搜索 + 多租户 |
+| 语义搜索 | find API | 支持中文语义 + 混合模式 |
+| 分层加载 | L0/L1/L2 | Token 节省 80-91% |
+| URI 方案 | `mem://` | 借鉴 viking:// 文件系统范式 |
+| 事实追溯 | facts→tiered→docs | 原子事实完整语境 |
+| 日志系统 | 异步缓冲 | 非阻塞 + SQLite audit |
 
-| 决策点 | 选择 | 理由 |
-|--------|------|------|
-| 向量数据库 | OpenViking HTTP | HTTP API + 语义搜索 + 多租户支持 |
-| 语义搜索 | OpenViking find API | 支持中文语义 + 混合模式 |
-| 多 Agent Scope | 应用层实现 (user_id/agent_id/team_id) | OpenViking scope 字段 + SQLite 过滤 |
-| 分层加载 | L0/L1/L2 三层 | 借鉴 OpenViking，Token 节省 80-91% |
-| 文件系统范式 | `mem://` URI | 借鉴 OpenViking viking:// |
-| 事实追溯 | facts → tiered → documents/assets | 原子事实完整语境 + 可追溯 |
-| 日志系统 | 异步缓冲 + 持久化审计 | 非阻塞输出 + SQLite access_log 表 |
-
-### 1.3 设计参数
-
-| 参数 | 值 |
-|------|-----|
-| Embedding 维度 | 1024 (bge-m3) |
-| L0 Token 预算 | ~50-100 (一句话摘要) |
-| L1 Token 预算 | ~500-2000 (结构化概述) |
-| θ₀ 基础阈值 | 0.7 (实体树) |
-| λ 深度因子 | 0.1 (θ(d) = θ₀ × e^(λd)) |
-| 数据存储 | `~/.agents_mem/` |
-| OpenViking 端点 | localhost:1933 |
-| 日志缓冲队列 | 1000 (高吞吐配置) |
-| Flush 间隔 | 5000ms |
-| 日志采样率 | 1.0 (全量审计) |
+**参数:** Embedding 1024 (bge-m3), L0=~100 tokens, L1=~2k tokens, θ₀=0.7, λ=0.1, 存储=`~/.agents_mem/`, OpenViking=localhost:1933
 
 ---
 
-## 二、架构设计
-
-### 2.1 六层架构
+## 二、六层架构
 
 ```
-Layer 0: SCOPE & IDENTITY        — user_id + agent_id + team_id + is_global
-Layer 1: INDEX & METADATA        — mem:// URI, 元数据过滤
-Layer 2: DOCUMENTS & ASSETS      — 原始素材完整保留
-Layer 3: TIERED CONTENT          — L0/L1/L2 分层摘要
-Layer 4: VECTOR + SEMANTIC SEARCH — OpenViking find API
-Layer 5: FACTS & ENTITY TREE     — 事实追溯链
-
-存储: SQLite (主数据) + OpenViking (向量搜索)
+L0: SCOPE & IDENTITY     — user_id + agent_id + team_id
+L1: INDEX & METADATA     — mem:// URI, 元数据过滤
+L2: DOCUMENTS & ASSETS   — 原始素材
+L3: TIERED CONTENT       — L0/L1/L2 分层摘要
+L4: VECTOR SEARCH        — OpenViking find API
+L5: FACTS & ENTITY TREE  — 事实追溯链
+存储: SQLite (主数据) + OpenViking (向量)
 ```
 
-**渐进式披露流程:**
-| Level | 操作 | Token | 延迟 |
-|-------|------|-------|------|
-| 1 | 元数据定位 (memory_index) | ~50 | 1-5ms |
-| 2 | L0 概览 (OpenViking abstract) | ~100 | 10-50ms |
-| 3 | L1 概要 (OpenViking overview) | ~2k | 10-50ms |
-| 4 | L2 完整 (OpenViking read) | 不限 | 20-100ms |
-| 5 | 事实追溯 (facts → documents) | ~1k | 20-100ms |
-| 6 | Agentic 推理 (多轮补检) | ~2k | 100-500ms |
+**披露流程:** 元数据(~50) → L0(~100) → L1(~2k) → L2(full) → facts(~1k) → agentic(~2k)
 
-### 2.2 目录结构
-
-```
-src/
-├── core/          # URI、Scope、Types、Constants
-├── sqlite/        # 15 表 CRUD + migrations
-├── openviking/    # HTTP client, URI adapter, scope mapper
-├── queue/         # 异步 embedding 队列
-├── embedder/      # Ollama client + cache
-├── tiered/        # L0/L1 生成器 (LLM)
-├── materials/     # URI resolver + trace
-├── facts/         # Extraction + verification + linking
-├── entity_tree/   # MemTree + θ(d) 阈值
-├── tools/         # MCP CRUD handlers
-├── utils/         # Logger, LogBuffer, AuditLogger, Shutdown
-└── mcp_server.ts  # 入口 (4 工具)
-```
+**目录:** `core/` `sqlite/` `openviking/` `queue/` `embedder/` `tiered/` `facts/` `entity_tree/` `tools/` `utils/` `mcp_server.ts`
 
 ---
 
 ## 三、数据模型
 
-### 3.1 OpenViking HTTP API
+**URI:** `mem://{userId}/{agentId?}/{teamId?}/{type}/{id}`
+
+示例: `mem://user123/agent1/_/documents/doc-456` | `mem://user123/_/team5/facts/fact-789`
+
+---
+
+## 四、核心算法
+
+| 算法 | 描述 |
+|------|------|
+| 语义搜索 | `client.find({ query, target_uri, limit, mode: 'hybrid' })` |
+| Token 控制 | <500→L0, <3000→L0+L1, ≥3000→L2 |
+| 实体树阈值 | θ(d) = θ₀ × e^(λd): θ(0)=0.70, θ(1)=0.77, θ(2)=0.85, θ(3)=0.93 |
+| 事实追溯 | fact.source_id → tiered.id → original_uri → documents/assets |
+
+---
+
+## 五、接口设计
+
+**MCP 工具 (4):** `mem_create` `mem_read` `mem_update` `mem_delete`
+
+**资源:** document, asset, conversation, message, fact, team
+
+**Scope:** `{ userId (必填), agentId?, teamId? }`
+
+**查询模式:**
+
+| 模式 | 示例 |
+|------|------|
+| ID | `{ id: "doc-123" }` |
+| 搜索 | `{ search: "关键词", searchMode: "hybrid" }` |
+| 分层 | `{ id: "doc-123", tier: "L0" }` |
+| 追溯 | `{ id: "fact-123", trace: true }` |
+| 列表 | `{ list: true, filters: {...} }` |
+
+**searchMode:** hybrid (FTS+Vector+RRF), fts (BM25), semantic, progressive
+
+---
+
+## 六、技术选型
+
+| 技术 | 用途 |
+|------|------|
+| Bun | 运行时 |
+| TypeScript (strict) | 开发语言 |
+| SQLite (better-sqlite3) | 主数据存储 |
+| OpenViking HTTP | 向量存储 + 语义搜索 |
+| Ollama (bge-m3) | Embedding (1024 维) |
+| Vitest | 测试框架 |
+| Zod | Schema 验证 |
+
+---
+
+## 七、质量与参考
+
+**质量:** 测试覆盖率 100%, strict 类型检查, 文档 DESIGN.md + AGENTS.md
+
+**参考:** OpenViking (分层加载/URI/find API), Membrain (原子事实/实体树θ(d))
+
+---
+
+## 八、OpenViking 集成
+
+**API 端点:**
 
 | 端点 | 方法 | 功能 |
 |------|------|------|
 | /api/v1/search/find | GET | 语义搜索 |
 | /api/v1/content/abstract | GET | L0 概览 |
 | /api/v1/content/overview | GET | L1 概要 |
-| /api/v1/content/read | GET | L2 完整内容 |
-| /api/v1/fs | DELETE | 删除资源 |
-| /api/v1/resources | POST | 添加资源 |
+| /api/v1/content/read | GET | L2 完整 |
+| /api/v1/fs | DELETE | 删除 |
+| /api/v1/resources | POST | 添加 |
 
-### 3.2 URI 格式
+**配置:** baseUrl=localhost:1933, timeout=30s, dimension=1024
 
-```
-mem://{userId}/{agentId?}/{teamId?}/{type}/{id}
+**组件:** HTTP Client (`http_client.ts`), URI Adapter (`uri_adapter.ts`), Scope Mapper (`scope_mapper.ts`)
 
-示例:
-mem://user123/agent1/_/documents/doc-456
-mem://user123/_/team5/facts/fact-789
-mem://user123/_/_/tiered/tiered-abc
-```
+**URI 转换:** `mem://user123/_/_/documents/doc-abc` → `viking://default/user123/resources/documents/doc-abc`
+
+**响应:** `{ status: "ok", result, time }` 或 `{ status: "error", error: { code, message } }`
 
 ---
 
-## 四、核心算法
-
-### 4.1 OpenViking 语义搜索
-
-```typescript
-const client = getOpenVikingClient();
-const results = await client.find({
-  query: 'search query',
-  target_uri: 'viking://default/user/resources',
-  limit: 10,
-  mode: 'hybrid',
-});
-```
-
-### 4.2 渐进式披露 Token 控制
-
-```
-Token < 500   → L0 (~100 tokens)
-Token < 3000  → L0 + L1 (~2k tokens)
-Token >= 3000 → L2 完整内容
-```
-
-### 4.3 实体树自适应阈值
-
-```
-θ(d) = θ₀ × e^(λd)
-
-θ(0) = 0.70  (根节点)
-θ(1) = 0.77  (第一层)
-θ(2) = 0.85  (第二层)
-θ(3) = 0.93  (第三层)
-
-深层节点需更高相似度才能合并
-```
-
-### 4.4 事实追溯链
-
-```
-fact.source_id → tiered_content.id → tiered_content.original_uri → documents/assets
-```
-
-### 4.5 日志系统架构
-
-**异步缓冲方案**（高吞吐配置）：
-```
-LogBuffer (队列 1000) → Threshold 80% trigger → Interval flush 5s → SQLite access_log
-```
-
-**关键参数**：
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| bufferSize | 1000 | 队列容量 |
-| flushIntervalMs | 5000 | 定时 flush |
-| maxRetries | 5 | SQLite 写入重试 |
-| expandOnFull | true | 队列满时扩容 |
-| maxExpandFactor | 10 | 最大扩容 10x |
-| shutdownTimeout | 2000ms | 优雅关闭等待 |
-
-**审计字段映射**：
-```
-userId → user_id
-agentId → agent_id
-resourceType → memory_type
-resourceId → memory_id
-operation → action
-scope → JSON.stringify({agentId, teamId})
-success → success (true/false)
-reason → reason (错误消息)
-```
-
-**环境变量配置**：
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| LOG_LEVEL | INFO | DEBUG/INFO/WARN/ERROR/SILENT |
-| LOG_BUFFER_SIZE | 1000 | 队列容量 |
-| FLUSH_INTERVAL_MS | 5000 | flush 间隔 |
-| LOG_FORMAT | text | text/json |
-| AUDIT_ENABLED | true | 审计开关 |
-| LOG_SAMPLING_RATE | 1.0 | 采样率 (0-1) |
-| LOG_MAX_FILE_SIZE | 10MB | 文件大小限制 |
-
----
-
-## 五、接口设计
-
-### 5.1 MCP CRUD 工具 (4 Tools)
-
-| 工具 | 功能 | 参数 |
-|------|------|------|
-| `mem_create` | 创建资源 | `resource`, `data`, `scope` |
-| `mem_read` | 读取/搜索 | `resource`, `query`, `scope` |
-| `mem_update` | 更新资源 | `resource`, `id`, `data`, `scope` |
-| `mem_delete` | 删除资源 | `resource`, `id`, `scope` |
-
-**资源类型:** `document`, `asset`, `conversation`, `message`, `fact`, `team`
-
-**作用域:** `{ userId: string, agentId?: string, teamId?: string }`
-
-### 5.2 查询模式
-
-| 模式 | 参数示例 | 说明 |
-|------|---------|------|
-| ID | `{ id: "doc-123" }` | 按 ID 获取 |
-| 搜索 | `{ search: "关键词", searchMode: "hybrid" }` | hybrid/fts/semantic/progressive |
-| 分层 | `{ id: "doc-123", tier: "L0" }` | L0 摘要 / L1 概述 / L2 完整 |
-| 追溯 | `{ id: "fact-123", trace: true }` | 追溯事实到源文档 |
-| 列表 | `{ list: true }` | 列出所有 |
-| 过滤 | `{ list: true, filters: { docType: "note" } }` | 按条件过滤 |
-
-### 5.3 搜索模式
-
-| searchMode | 描述 |
-|------------|------|
-| `hybrid` | FTS + Vector + RRF (默认) |
-| `fts` | BM25 全文搜索 |
-| `semantic` | 纯向量搜索 |
-| `progressive` | 渐进式披露 (L0→L1→L2) |
-
----
-
-## 六、技术选型
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Bun | latest | 运行时 |
-| TypeScript | strict | 开发语言 |
-| SQLite | better-sqlite3 | 主数据存储 |
-| LanceDB | @lancedb/lancedb | 向量 + FTS |
-| Apache Arrow | apache-arrow | LanceDB Schema |
-| Ollama | ollama | Embedding |
-| Vitest | latest | 测试框架 |
-| Zod | latest | Schema 验证 |
-
----
-
-## 七、质量要求
-
-| 要求 | 标准 |
-|------|------|
-| 测试覆盖率 | 100% |
-| 类型检查 | strict, 无 any |
-| 文档 | DESIGN.md + IMPLEMENTATION_PLAN.md |
-
----
-
-## 八、参考资料
-
-| 来源 | 借鉴内容 |
-|------|----------|
-| OpenViking | L0/L1/L2 分层加载、viking:// URI |
-| Membrain | 原子事实完整语境、自适应实体树 θ(d) |
-| LanceDB | 混合搜索 FTS + 向量 + RRF |
-
----
-
-## 九、实施状态 (2026-04-13)
-
-所有核心功能已完整实现并通过测试：
+## 九、实施状态
 
 | 功能 | 文件 | 状态 |
 |------|------|------|
-| 混合搜索 (FTS + 向量 + RRF) | `src/lance/hybrid_search.ts` | ✅ |
-| FTS 搜索 (BM25) | `src/lance/fts_search.ts` | ✅ |
-| 纯向量搜索 | `src/lance/semantic_search.ts` | ✅ |
-| assets_vec 表 CRUD | `src/lance/assets_vec.ts` | ✅ |
-| Fact Verifier + Linker | `src/facts/verifier.ts`, `linker.ts` | ✅ |
-| ScopeFilter 全支持 | `src/core/scope.ts` | ✅ |
-| 异步 Embedding 队列 | `src/queue/embedding_queue.ts` | ✅ |
-| 向量表初始化 + 重建回退 | `src/lance/connection.ts` | ✅ |
-| API 错误提示增强 | `src/tools/crud_handlers.ts` | ✅ |
-| **异步日志缓冲** | `src/utils/log_buffer.ts` | ✅ NEW |
-| **环境变量配置** | `src/utils/config.ts` | ✅ NEW |
-| **Logger 扩展** | `src/utils/logger.ts` | ✅ NEW |
-| **审计层** | `src/utils/audit_logger.ts` | ✅ NEW |
-| **优雅关闭** | `src/utils/shutdown.ts` | ✅ NEW |
-| **CRUD 审计集成** | `src/tools/crud_handlers.ts` | ✅ NEW (24 点) |
-| **向量删除同步** | `src/tools/crud_handlers.ts` | ✅ NEW (document/asset/message/fact 删除时同步清理 LanceDB 向量) |
-
----
-
-## 十、队列系统 (2026-04-13 更新)
-
-### 10.1 组件状态
-
-| 组件 | 文件 | 状态 |
-|------|------|------|
-| 单例获取器 | `queue/index.ts` | ✅ 新增 |
-| 类型转换器 | `queue/converters.ts` | ✅ 新增 |
-| 队列修复 | `queue/embedding_queue.ts` | ✅ 修复 5 处调用点 |
-
-### 10.2 转换函数
-
-- `recordToJob()`: `QueueJobRecord` → `QueueJob` (snake_case 转 camelCase，字符串 payload 转对象)
-- `jobToRecord()`: `QueueJob` → `QueueJobRecord` (反向转换)
-
-### 10.3 单例模式
-
-`getEmbeddingQueue()` 遵循 `tiered/queue.ts` 模式，提供统一的队列访问入口。
-
----
-
-## 十一、FTS 索引创建 (2026-04-13 新增)
-
-### 11.1 问题背景
-
-**原始问题**: 文档存入成功后，hybrid/FTS 搜索返回空结果，只能通过 ID 直接读取。
-
-**根本原因**: 
-- `storeDocument()` 只排队 `embedding` job，没有排队 `fts_index` job
-- LanceDB `fullTextSearch()` 需要 FTS 索引才能工作
-- `checkAndRebuild()` 只重建向量索引，不创建 FTS 索引
-
-### 11.2 设计决策
-
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| FTS 索引创建时机 | 异步排队 + 结果反馈 | 文档创建立即返回，FTS 索引后台处理 |
-| 中文支持 | 预处理分词 (jieba-wasm) | LanceDB/Tantivy 不支持外部 tokenizer |
-| 索引重建策略 | A+B 双重防御 | 主动检查 + 搜索失败后重建 |
-
-### 11.3 实现方案
-
-**FTS 索引创建流程:**
-```
-storeDocument() → queue.addJob({ type: 'fts_index', ... }) → 
-EmbeddingQueue.processFtsIndex() → createFTSIndex() → 
-FTS 索引创建完成
-```
-
-**中文分词处理:**
-```
-detectChineseContent(content) → true →
-segmentChinese(content) via jieba-wasm →
-存储到 content_segmented 字段 →
-FTS 索引同时覆盖 content 和 content_segmented
-```
-
-**checkAndRebuild FTS 验证:**
-```
-1. 检查 FTS 索引存在性 (checkFTSIndexExists)
-2. 不存在 → 创建 FTS 索引
-3. hybridSearch 失败 → fallback 到 vector search
-```
-
-### 11.4 新增组件
-
-| 组件 | 文件 | 功能 |
-|------|------|------|
-| 中文分词器 | `src/utils/chinese_segmenter.ts` | jieba-wasm 分词 |
-| FTS 索引字段 | `src/lance/schema.ts` | content_segmented 字段 |
-| FTS 索引队列 | `src/queue/embedding_queue.ts` | processFtsIndex() |
-| FTS 索引验证 | `src/lance/hybrid_search.ts` | checkFTSIndexExists() |
-
-### 11.5 LanceDB FTS 配置
-
-**可用参数 (FtsOptions):**
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| baseTokenizer | string | "simple" | 分词器: simple/whitespace/raw/ngram |
-| language | string | "English" | Stemming 语言 |
-| stem | boolean | true | 是否 stemming |
-| removeStopWords | boolean | true | 移除停用词 |
-| lowercase | boolean | true | 小写转换 |
-| asciiFolding | boolean | true | ASCII 折叠 |
-| withPosition | boolean | false | 存储位置信息 |
-
-**中文限制**: LanceDB/Tantivy 不原生支持中文 tokenizer，需预处理。
-
----
-
-## 十二、向量删除同步 (2026-04-13 新增)
-
-### 12.1 问题背景
-
-**原始问题**: 删除文档时，SQLite 数据已清理，但 LanceDB 向量数据残留，导致已删除文档仍出现在搜索结果中。
-
-**根本原因**: 
-- `handleMemDelete()` 只调用 SQLite 的 `deleteDocument()` 
-- 未调用 LanceDB 的 `deleteDocumentVector()`
-- 导致向量表与 SQLite 表数据不一致
-
-### 12.2 设计决策
-
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| 修复范围 | document, asset, message, fact | 这 4 种资源有对应向量表 |
-| 异步策略 | 同步等待 | 代码简单，延迟影响小（毫秒级） |
-| 错误处理 | 仅记录日志，不阻塞主流程 | 向量删除失败不应阻止用户删除操作 |
-| 测试覆盖 | Mock 测试 + 集成测试 | 确保 Mock 验证 + 真实 LanceDB 验证 |
-
-### 12.3 实现方案
-
-**删除流程 (document 示例):**
-```typescript
-// SQLite 删除
-deleteDocument(id);
-deleteMemoryIndexByTarget('documents', id);
-
-// LanceDB 向量删除 (非阻塞)
-try {
-  await deleteDocumentVector(id);
-} catch (err) {
-  console.error(`Failed to delete document vector: ${(err as Error).message}`);
-}
-
-// 审计日志
-getAuditLogger().log({...});
-return successResponse({ success: true, id });
-```
-
-### 12.4 新增调用点
-
-| 资源 | 文件 | 新增调用 |
-|------|------|---------|
-| document | crud_handlers.ts:856 | `await deleteDocumentVector(id)` |
-| asset | crud_handlers.ts:901 | `await deleteAssetVector(id)` |
-| message | crud_handlers.ts:967 | `await deleteMessageVector(id)` |
-| fact | crud_handlers.ts:1010 | `await deleteFactVector(id)` |
-
-### 12.5 LanceDB 删除函数位置
-
-| 函数 | 文件 | 行号 |
-|------|------|------|
-| `deleteDocumentVector()` | `src/lance/documents_vec.ts` | 84 |
-| `deleteAssetVector()` | `src/lance/assets_vec.ts` | 68 |
-| `deleteMessageVector()` | `src/lance/messages_vec.ts` | 67 |
-| `deleteFactVector()` | `src/lance/facts_vec.ts` | 72 |
-
-### 12.6 测试覆盖
-
-- **Mock 测试**: `tests/tools/mem_delete.test.ts` - 验证向量删除函数被调用
-- **错误处理测试**: 验证向量删除失败时主流程仍成功
-- **集成测试**: `tests/tools/audit_integration.test.ts` - 真实 LanceDB 验证
-
----
-
-**文档结束**
-
----
-
-## 十三、OpenViking 集成 (2026-04-14 更新)
-
-### 13.1 概述
-
-LanceDB 已替换为 OpenViking HTTP 服务。向量存储和语义搜索由 OpenViking 处理。
-
-### 13.2 API 端点
-
-| 端点 | 方法 | 功能 |
-|------|------|------|
-| /api/v1/search/find | GET | 语义搜索 (查询参数传参) |
-| /api/v1/content/abstract | GET | L0 概览 |
-| /api/v1/content/overview | GET | L1 概要 |
-| /api/v1/content/read | GET | L2 完整内容 |
-| /api/v1/fs | DELETE | 删除资源 |
-| /api/v1/resources | POST | 添加资源 |
-
-### 13.3 配置参数
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| baseUrl | http://localhost:1933 | 服务器地址 |
-| apiKey | - | 认证密钥 |
-| timeout | 30000ms | HTTP 请求超时 |
-| embedding.dimension | 1024 | 向量维度 (bge-m3) |
-
-### 13.4 组件
-
-| 组件 | 文件 | 功能 |
-|------|------|------|
-| HTTP Client | src/openviking/http_client.ts | OpenViking HTTP SDK |
-| URI Adapter | src/openviking/uri_adapter.ts | mem:// ↔ viking:// 转换 |
-| Scope Mapper | src/openviking/scope_mapper.ts | OpenViking scope 过滤器 |
-| Config | src/openviking/config.ts | 配置管理 |
-
-### 13.5 URI 转换
-
-```
-mem://user123/_/_/documents/doc-abc
-↓ URIAdapter.toVikingURI()
-viking://default/user123/resources/documents/doc-abc
-```
-
-### 13.6 响应格式
-
-**成功响应:**
-```json
-{
-  "status": "ok",
-  "result": { ... },
-  "time": 0.123
-}
-```
-
-**错误响应:**
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Resource not found"
-  },
-  "time": 0.01
-}
-```
-
-### 13.7 测试修复
-
-| 问题 | 修复 |
-|------|------|
-| MatchedContext 类型缺失 | 添加导入到 http_client.ts |
-| API 响应类型断言 | 使用 `as` 类型断言 |
-| Mock fetch preconnect | 创建 tests/utils/mock_fetch.ts |
-| LanceDB 引用移除 | 替换为 OpenViking mock |
-| Queue async/await | 添加 await 到异步调用 |
+| OpenViking HTTP Client | openviking/http_client.ts | ✅ |
+| URI Adapter | openviking/uri_adapter.ts | ✅ |
+| Scope Mapper | openviking/scope_mapper.ts | ✅ |
+| 语义搜索 | openviking/http_client.ts | ✅ |
+| L0/L1/L2 分层 | openviking/http_client.ts | ✅ |
+| Fact Verifier+Linker | facts/*.ts | ✅ |
+| ScopeFilter | core/scope.ts | ✅ |
+| Embedding Queue | queue/embedding_queue.ts | ✅ |
+| LogBuffer | utils/log_buffer.ts | ✅ |
+| AuditLogger | utils/audit_logger.ts | ✅ |
+| Shutdown | utils/shutdown.ts | ✅ |
+| MCP CRUD | tools/crud_handlers.ts | ✅ |
 
 ---
 
