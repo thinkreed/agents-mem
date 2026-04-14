@@ -35,7 +35,7 @@ export class OpenVikingHTTPClient {
    */
   async healthCheck(): Promise<{ status: 'ok' | 'error'; message?: string }> {
     try {
-      const response = await this.request('GET', '/api/v1/health');
+      const response = await this.request('GET', '/health');
       return { status: 'ok' };
     } catch (err) {
       return {
