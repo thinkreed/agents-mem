@@ -1,142 +1,80 @@
-# PROJECT KNOWLEDGE BASE
+# agents-mem
 
-**Generated:** 2026-04-14T03:00:00  
-**Branch:** fix/openviking-integration
+六层渐进式记忆系统，支持 169+ 代理。TypeScript/Bun + SQLite + OpenViking。
 
-## OVERVIEW
+## 快速命令
 
-Six-layer progressive disclosure memory system for 169+ agents. TypeScript/Bun runtime with SQLite + OpenViking HTTP storage. Token cost optimization via tiered content loading (L0→L1→L2).
+```bash
+bun install && bun test && bun run src/mcp_server.ts
+```
 
-## STRUCTURE
+## 依赖服务
+
+- **Ollama**: localhost:11434 (bge-m3  embeddings, dim=1024)
+- **OpenViking**: localhost:1933 (向量搜索, POST /api/v1/search/find)
+- **存储**: `~/.agents_mem/`
+
+## 目录结构
 
 ```
 src/
-├── core/        # Types, URI, Scope, Constants
-├── sqlite/      # 15 tables, CRUD, migrations
-├── openviking/  # HTTP client, URI adapter, scope mapper
-├── queue/       # Background job queue (async embedding)
-├── tools/       # MCP CRUD handlers
-├── tiered/      # L0/L1 content generation
-├── facts/       # Extraction, linking, verification
-├── entity_tree/ # Aggregation, threshold-based tree
-├── embedder/    # Ollama client + cache
-├── llm/         # LLM prompts, streaming
-├── materials/   # URI resolver, trace, store
-├── utils/       # Logger, LogBuffer, AuditLogger, Shutdown
-└── mcp_server.ts # Entry point (MCP stdio)
+├── core/        # 类型、URI、Scope、常量
+├── sqlite/      # 15 张表、CRUD、迁移
+├── openviking/  # HTTP 客户端、URI 适配、Scope 映射
+├── queue/       # 异步 embedding 队列
+├── tools/       # 4 个 MCP CRUD 工具
+├── tiered/      # L0/L1 内容生成
+├── facts/       # 事实提取、验证、链接
+├── entity_tree/ # 聚合、阈值树
+├── embedder/    # Ollama 客户端 + 缓存
+├── llm/         # LLM 提示词、流式
+├── materials/   # URI 解析、追踪、存储
+└── utils/       # 日志、审计、关闭
 ```
 
-## WHERE TO LOOK
+## 关键约定
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add entity type | `src/core/types.ts` | EntityType union |
-| SQLite CRUD | `src/sqlite/{entity}.ts` | create/get/update/delete/search |
-| Vector search | `src/openviking/http_client.ts` | OpenViking HTTP API |
-| URI conversion | `src/openviking/uri_adapter.ts` | mem:// ↔ viking:// |
-| Scope mapping | `src/openviking/scope_mapper.ts` | OpenViking scope filter |
-| MCP tool | `src/tools/crud_handlers.ts` | 4 unified tools |
-| Tiered content | `src/tiered/generator.ts` | L0/L1 generation |
-| Fact extraction | `src/facts/extractor.ts` | Ollama-based |
-| Background queue | `src/queue/embedding_queue.ts` | Async embedding jobs |
-| LogBuffer | `src/utils/log_buffer.ts` | Async log buffer |
-| Document storage | `src/materials/store.ts` | Queues embedding jobs |
+- **Scope 必需**: `userId` 必填, `agentId/teamId` 可选
+- **SQLite 蛇形**: `user_id`, `created_at`
+- **Unix 秒**: `Math.floor(Date.now() / 1000)`
+- **Token 预算**: L0=100, L1=2000
+- **重试**: maxRetries=3, retryDelay=100ms
 
-## CODE MAP
+## MCP 工具
 
-| Symbol | Type | Location | Role |
-|--------|------|----------|------|
-| Scope | interface | core/types.ts | User/Agent/Team isolation |
-| EntityType | type | core/types.ts | Entity union |
-| MaterialURI | interface | core/types.ts | mem:// URI structure |
-| handleMemCreate | function | tools/crud_handlers.ts | MCP create dispatcher |
-| handleMemRead | function | tools/crud_handlers.ts | MCP read dispatcher |
-| OpenVikingHTTPClient | class | openviking/http_client.ts | HTTP SDK |
-| URIAdapter | class | openviking/uri_adapter.ts | URI conversion |
-| ScopeMapper | class | openviking/scope_mapper.ts | Scope filter builder |
-| ScopeFilter | class | core/scope.ts | SQL filter builder |
-| EmbeddingQueue | class | queue/embedding_queue.ts | Async job queue |
-| QueueJob | interface | queue/types.ts | Job definition |
-| QueueStats | interface | queue/types.ts | Queue statistics |
-| LogBuffer | class | utils/log_buffer.ts | Async log buffer |
-| AuditLogger | class | utils/audit_logger.ts | Audit trail |
+| 工具 | 功能 |
+|------|------|
+| `mem_create` | 创建 6 种资源 |
+| `mem_read` | 读取/搜索/列表/分层 |
+| `mem_update` | 更新 (验证 scope) |
+| `mem_delete` | 删除 (级联) |
 
-## CONVENTIONS
+**资源类型**: document, asset, conversation, message, fact, team
 
-- **Bun runtime**: TypeScript runs directly via Bun, no Node.js
-- **Snake_case in SQLite**: `user_id`, `created_at`
-- **Unix timestamps**: `Math.floor(Date.now() / 1000)` (seconds)
-- **Scope required**: `userId` mandatory, `agentId/teamId` optional
-- **Embedding dim**: 1024 (bge-m3 via OpenViking)
-- **Token budgets**: L0=100, L1=2000
-- **OpenViking HTTP**: localhost:1933, POST /api/v1/search/find
-- **Async queue**: Background jobs for embedding (maxRetries=3)
-- **Job retries**: maxRetries=3, retryDelay=100ms
+## 搜索模式
 
-## ERROR MESSAGES
+- `hybrid` - OpenViking 混合搜索 (支持中文)
+- `fts` - 全文搜索
+- `semantic` - 向量相似度
+- `progressive` - L0 分层 + 降级
 
-| Error Type | Message Format |
-|------------|----------------|
-| userId missing | `"userId is required for {resource}. Provide scope: { userId: \"...\" }"` |
-| query missing | `"query is required for mem_read. Valid formats: { id }, { search }, { list }, { filters }"` |
-| Invalid query | `"Invalid query for {resource}. Valid keys: {keys}"` |
+## 常见问题
 
-Valid keys per resource:
+| 问题 | 解决 |
+|------|------|
+| OpenViking 连接失败 | 启动服务, 验证 API key |
+| 搜索返回空 | 等待异步处理, 检查 Ollama, 验证 scope |
+| 中文搜索失败 | 使用 `searchMode: 'hybrid'` |
+
+## 错误消息格式
+
+- **userId 缺失**: `"userId is required for {resource}"`
+- **query 缺失**: `"query is required for mem_read"`
+- **无效查询**: `"Invalid query for {resource}. Valid keys: {keys}"`
+
+**有效查询键**:
 - document: `id, search, list, tier`
-- asset: `id, list`
-- conversation: `id, list`
+- asset/conversation: `id, list`
 - message: `id, conversationId`
 - fact: `id, filters`
 - team: `id, list, filters`
-
-## ANTI-PATTERNS
-
-- **Logger integrated**: `src/utils/logger.ts` with async buffering
-- **No public index.ts**: Package has no root export barrel
-
-## UNIQUE STYLES
-
-- **Layered schema comments**: L0-L5 markers in `sqlite/schema.ts`
-- **4-tool MCP interface**: Unified CRUD for 6 resource types
-- **Threshold formula**: θ(d) = θ₀ × e^(λd) for entity tree depth
-
-## COMMANDS
-
-```bash
-bun install          # Dependencies
-bun test             # All tests (Vitest)
-bun run typecheck    # TypeScript check
-bun run src/mcp_server.ts  # Start MCP server
-```
-
-## NOTES
-
-- **No CI/CD**: Docker-based testing locally
-- **MCP stdio**: Server runs as subprocess, not HTTP
-- **Ollama required**: Embeddings need localhost:11434
-- **OpenViking required**: Vector search needs localhost:1933
-- **Storage**: `~/.agents_mem/` (SQLite for metadata)
-
-## TROUBLESHOOTING
-
-### OpenViking Connection Issues
-
-**Symptom:** Search returns connection errors  
-**Causes:** OpenViking server not running (localhost:1933), API key mismatch, network issues  
-**Fixes:** Start OpenViking server, verify API key, check connectivity
-
-### Search Returns Empty Results
-
-**Symptom:** Document stored but search returns `[]`  
-**Causes:** OpenViking not yet processed (async), Ollama unavailable, **URI path mismatch**  
-**Fixes:** Wait and retry, verify Ollama (`curl http://localhost:11434/api/tags`), check scope matches
-
-**URI Path Alignment (Fixed 2026-04-14):**
-- Storage: `uriAdapter.buildTargetUri(scope, 'documents')` → `viking://default/userId/agentId/resources/documents`
-- Search: Same path now - uses `uriAdapter.buildTargetUri(scope, 'documents')` for all search modes
-- Both storage and search use `resources/documents` path for proper vector matching
-
-### Chinese Search Issues
-
-**Symptom:** Chinese queries return no results  
-**Solution:** Use `searchMode: 'hybrid'` - OpenViking embeddings support Chinese semantically

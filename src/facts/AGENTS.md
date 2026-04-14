@@ -1,23 +1,23 @@
 # src/facts
 
-Fact extraction, verification, and linking layer.
+事实提取、验证和链接层。
 
-## WHERE TO LOOK
+## 文件职责
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Fact extraction | extractor.ts | LLM-based fact extraction |
-| Fact verification | verifier.ts | Cross-check with source documents |
-| Fact linking | linker.ts | Deduplication by user_id + entity_name |
+| 文件 | 功能 |
+|------|------|
+| extractor.ts | LLM 驱动的事实提取 |
+| verifier.ts | 与源文档交叉验证，重新计算置信度 |
+| linker.ts | 按 user_id + entity_name 去重链接 |
 
-## CONVENTIONS
+## 约定
 
-- **Verification**: Cross-checks facts with source documents, recalculates confidence
-- **Linking**: Deduplicates entities by user_id + entity_name
-- **Source types**: documents, messages, conversations
+- **验证**: 与源文档交叉验证，重新计算置信度
+- **链接**: 按 user_id + entity_name 去重
+- **来源类型**: documents, messages, conversations
 
-## NOTES
+## 注意
 
-- All fact operations require userId scope
-- Facts are immutable after creation (content cannot be modified)
-- Trace functionality links facts back to original documents via tiered_content
+- 所有操作需要 userId scope
+- 事实创建后不可修改 (不可变)
+- 追踪功能通过 tiered_content 链接回原始文档

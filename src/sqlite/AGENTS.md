@@ -1,13 +1,11 @@
-# AGENTS.md
+# src/sqlite
 
-## OVERVIEW
+SQLite 关系层，14 张表，CRUD 操作和迁移管理 (bun:sqlite)。
 
-SQLite relational layer with 14 tables, CRUD operations, and migration management using bun:sqlite.
+## 表结构
 
-## STRUCTURE
-
-| Table | Entity | File |
-|-------|--------|------|
+| 表名 | 实体 | 文件 |
+|------|------|------|
 | users | User | users.ts |
 | agents | Agent | agents.ts |
 | teams | Team | teams.ts |
@@ -23,25 +21,22 @@ SQLite relational layer with 14 tables, CRUD operations, and migration managemen
 | extraction_status | ExtractionStatus | extraction_status.ts |
 | memory_access_log | AccessLog | access_log.ts |
 
-## WHERE TO LOOK
+## 关键文件
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Schema definitions | schema.ts | L0-L5 layer comments |
-| Run migrations | migrations.ts:runMigrations | MigrationManager class |
-| Connection | connection.ts | Singleton getDb() |
-| CRUD for entity | {entity}.ts | Each has create/get/update/delete/search |
+- **schema.ts** - 表定义 (L0-L5 层注释)
+- **migrations.ts** - 迁移管理 (MigrationManager)
+- **connection.ts** - 单例 getDb()
 
-## CONVENTIONS
+## 约定
 
-- **Snake_case columns**: `user_id`, `created_at`, `updated_at`
-- **Unix seconds**: `strftime('%s', 'now')` not milliseconds
-- **Each entity file**: Input/Output/Record interfaces + 6 CRUD functions
-- **Text columns**: JSON strings for arrays/objects
+- **蛇形列名**: `user_id`, `created_at`, `updated_at`
+- **Unix 秒**: `strftime('%s', 'now')` (非毫秒)
+- **每个实体文件**: Input/Output/Record 接口 + 6 个 CRUD 函数
+- **文本列**: JSON 字符串存储数组/对象
 
-## ANTI-PATTERNS
+## 已知问题
 
-- **No transactions**: Individual writes not wrapped in transactions
-- **No indexes on foreign keys**: Performance risk at scale
-- **No cascading deletes**: Manual cleanup required
-- **access_log.ts unused**: Table created but not wired to writes
+- 无事务包装 (单个写入操作)
+- 外键无索引 (大规模性能风险)
+- 无级联删除 (需手动清理)
+- access_log.ts 未连接到写入

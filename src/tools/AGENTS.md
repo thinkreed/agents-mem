@@ -1,36 +1,27 @@
 # src/tools
 
-MCP interface layer exposing 4 unified CRUD tools for 6 resource types.
+MCP 接口层，4 个统一 CRUD 工具操作 6 种资源类型。
 
-## HANDLERS
+## 工具映射
 
-| Tool | Handler | Role |
-|------|---------|------|
-| `mem_create` | handleMemCreate | Create all 6 resources |
-| `mem_read` | handleMemRead | Read, search, list, tier, trace |
-| `mem_update` | handleMemUpdate | Update with scope validation |
-| `mem_delete` | handleMemDelete | Delete with cascade |
+| MCP 工具 | 处理函数 | 功能 |
+|----------|----------|------|
+| `mem_create` | handleMemCreate | 创建所有资源 |
+| `mem_read` | handleMemRead | 读取/搜索/列表/分层/追踪 |
+| `mem_update` | handleMemUpdate | 更新 (验证 scope) |
+| `mem_delete` | handleMemDelete | 删除 (级联) |
 
-## CONVENTIONS
+## 验证规则
 
-- `validateResource()` → document|asset|conversation|message|fact|team
-- `validRoles` → user|assistant|system|tool
-- `validSourceTypes` → documents|messages|conversations
-- `validTiers` → L0|L1|L2
-- `validModes` → hybrid|fts|semantic|progressive
+- **资源**: document, asset, conversation, message, fact, team
+- **角色**: user, assistant, system, tool
+- **来源**: documents, messages, conversations
+- **层级**: L0, L1, L2
+- **模式**: hybrid, fts, semantic, progressive
 
-## API REFERENCE
+## 搜索模式
 
-| Tool | Parameters | Returns |
-|------|------------|---------|
-| `mem_create` | resource, data, scope? | Created resource |
-| `mem_read` | resource, query, scope? | Resource(s) or search results |
-| `mem_update` | resource, id, data, scope? | Updated resource |
-| `mem_delete` | resource, id, scope? | {success, id} |
-
-## SEARCH MODES
-
-- `hybrid` → OpenViking hybrid search
-- `fts` → Full-text search
-- `semantic` → Vector similarity
-- `progressive` → L0 tier with fallback
+- `hybrid` → OpenViking 混合搜索
+- `fts` → 全文搜索
+- `semantic` → 向量相似度
+- `progressive` → L0 分层 + 降级
