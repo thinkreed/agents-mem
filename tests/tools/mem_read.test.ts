@@ -50,7 +50,16 @@ const mockMapToVikingTarget = vi.fn().mockReturnValue('viking://default/user/res
 const mockBuildTargetForType = vi.fn().mockReturnValue('viking://default/user/resources/documents');
 const mockToMemURI = vi.fn().mockReturnValue('mem://user/_/_/documents/doc-123');
 const mockToVikingURI = vi.fn().mockReturnValue('viking://default/user/resources/documents/doc-123');
-const mockBuildTargetUri = vi.fn().mockReturnValue('viking://default/user/resources/documents');
+// buildTargetUri mock - returns URI based on actual scope parameters
+const mockBuildTargetUri = vi.fn().mockImplementation((scope: { userId: string; agentId?: string; teamId?: string }, entityType: string) => {
+  const parts: string[] = ['default', scope.userId];
+  if (scope.agentId) {
+    parts.push(scope.agentId);
+  }
+  // ENTITY_TO_VIKING['documents'] = 'resources', basePath = ['documents']
+  parts.push('resources', 'documents');
+  return 'viking://' + parts.join('/');
+});
 
 // OpenViking mock - use module-level mocks
 vi.mock('../../src/openviking', () => ({
@@ -223,6 +232,103 @@ describe('mem_read tool', () => {
         scope: { userId: 'user-1' }
       });
       expect(result.content[0].text).toContain('progressive');
+    });
+  });
+
+  /**
+   * TDD: URI path alignment tests
+   * These tests verify that search uses correct URI path matching storage
+   * @see E:\bugs\agents-mem-search-failure-2026-04-14.md - Root cause: URI path mismatch
+   * 
+   * Expected behavior: Search targetUri should contain 'resources/documents' 
+   * to match storage path from uriAdapter.buildTargetUri(scope, 'documents')
+   * 
+   * Current bug: crud_handlers uses scopeMapper.mapToVikingTarget() which returns 'memories'
+   * These tests should FAIL initially, documenting expected behavior
+   */
+  describe('search URI path alignment - targetUri verification', () => {
+    it('hybrid search should use resources/documents path', async () => {
+      mockFind.mockResolvedValueOnce({
+        documents: [],
+        memories: [],
+        skills: [],
+        total: 0
+      });
+      await getHandler()({
+        resource: 'document',
+        query: { search: 'test query', searchMode: 'hybrid' },
+        scope: { userId: 'test-user' }
+      });
+      // Verify targetUri contains 'resources/documents' (matching storage path)
+      const findCallArgs = mockFind.mock.calls[0][0];
+      expect(findCallArgs.targetUri).toContain('resources/documents');
+    });
+
+    it('fts search should use resources/documents path', async () => {
+      mockFind.mockResolvedValueOnce({
+        documents: [],
+        memories: [],
+        skills: [],
+        total: 0
+      });
+      await getHandler()({
+        resource: 'document',
+        query: { search: 'test query', searchMode: 'fts' },
+        scope: { userId: 'test-user' }
+      });
+      const findCallArgs = mockFind.mock.calls[0][0];
+      expect(findCallArgs.targetUri).toContain('resources/documents');
+    });
+
+    it('semantic search should use resources/documents path', async () => {
+      mockFind.mockResolvedValueOnce({
+        documents: [],
+        memories: [],
+        skills: [],
+        total: 0
+      });
+      await getHandler()({
+        resource: 'document',
+        query: { search: 'test query', searchMode: 'semantic' },
+        scope: { userId: 'test-user' }
+      });
+      const findCallArgs = mockFind.mock.calls[0][0];
+      expect(findCallArgs.targetUri).toContain('resources/documents');
+    });
+
+    it('progressive search should use resources/documents path', async () => {
+      mockFind.mockResolvedValueOnce({
+        documents: [],
+        memories: [],
+        skills: [],
+        total: 0
+      });
+      await getHandler()({
+        resource: 'document',
+        query: { search: 'test query', searchMode: 'progressive', tokenBudget: 500 },
+        scope: { userId: 'test-user' }
+      });
+      const findCallArgs = mockFind.mock.calls[0][0];
+      expect(findCallArgs.targetUri).toContain('resources/documents');
+    });
+
+    it('search with agentId should include agent in resources/documents path', async () => {
+      mockFind.mockResolvedValueOnce({
+        documents: [],
+        memories: [],
+        skills: [],
+        total: 0
+      });
+      await getHandler()({
+        resource: 'document',
+        query: { search: 'test query', searchMode: 'hybrid' },
+        scope: { userId: 'test-user', agentId: 'test-agent' }
+      });
+      const findCallArgs = mockFind.mock.calls[0][0];
+      // Should contain user, agent, and resources/documents in path
+      expect(findCallArgs.targetUri).toContain('test-user');
+      expect(findCallArgs.targetUri).toContain('test-agent');
+      expect(findCallArgs.targetUri).toContain('resources/documents');
     });
   });
 

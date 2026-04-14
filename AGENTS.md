@@ -128,8 +128,13 @@ bun run src/mcp_server.ts  # Start MCP server
 ### Search Returns Empty Results
 
 **Symptom:** Document stored but search returns `[]`  
-**Causes:** OpenViking not yet processed (async), Ollama unavailable, scope mismatch  
+**Causes:** OpenViking not yet processed (async), Ollama unavailable, **URI path mismatch**  
 **Fixes:** Wait and retry, verify Ollama (`curl http://localhost:11434/api/tags`), check scope matches
+
+**URI Path Alignment (Fixed 2026-04-14):**
+- Storage: `uriAdapter.buildTargetUri(scope, 'documents')` → `viking://default/userId/agentId/resources/documents`
+- Search: Same path now - uses `uriAdapter.buildTargetUri(scope, 'documents')` for all search modes
+- Both storage and search use `resources/documents` path for proper vector matching
 
 ### Chinese Search Issues
 

@@ -121,6 +121,11 @@ L5: FACTS & ENTITY TREE  — 事实追溯链
 
 **URI 转换:** `mem://user123/_/_/documents/doc-abc` → `viking://default/user123/resources/documents/doc-abc`
 
+**URI 路径统一 (2026-04-14 修复):**
+- 存储 (store.ts): `uriAdapter.buildTargetUri(scope, 'documents')` → `viking://default/userId/agentId/resources/documents`
+- 搜索 (crud_handlers.ts): 同样使用 `uriAdapter.buildTargetUri(scope, 'documents')` 确保路径一致
+- 所有搜索模式 (hybrid, fts, semantic, progressive) 使用相同的 targetUri 格式
+
 **响应:** `{ status: "ok", result, time }` 或 `{ status: "error", error: { code, message } }`
 
 ---

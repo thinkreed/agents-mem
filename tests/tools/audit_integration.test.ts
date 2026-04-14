@@ -122,7 +122,8 @@ vi.mock('../../src/openviking', () => ({
   })),
   getURIAdapter: vi.fn(() => ({
     toVikingURI: vi.fn((memUri: string) => 'viking://test' + memUri),
-    toMemURI: vi.fn((vikingUri: string) => 'mem://test' + vikingUri)
+    toMemURI: vi.fn((vikingUri: string) => 'mem://test' + vikingUri),
+    buildTargetUri: vi.fn((scope: any, entityType: string) => 'viking://default/' + scope.userId + '/resources/documents')
   })),
   getScopeMapper: vi.fn(() => ({
     mapToVikingTarget: vi.fn(() => 'viking://test/user')
