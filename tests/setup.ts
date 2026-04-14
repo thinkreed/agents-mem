@@ -1,18 +1,19 @@
 /**
  * @file tests/setup.ts
- * @description Global test setup for mock pollution prevention
- * @see E:\projects\mock污染处理.md for cleanup strategy
+ * @description Global test setup for bun:test
+ *
+ * bun:test automatically re-imports modules for each test file,
+ * so vi.resetModules() is not needed.
  */
 
-import { beforeEach, afterEach, vi } from 'vitest';
+import { beforeEach, afterEach, vi, describe: describeBun } from 'bun:test';
 
-// Reset module cache before each test (prevents vi.mock hoisting pollution)
+// Clear all mocks before each test
 beforeEach(() => {
-  vi.resetModules();
   vi.clearAllMocks();
 });
 
-// Restore all spies to original implementations after each test
+// Restore all spies after each test
 afterEach(() => {
   vi.restoreAllMocks();
 });

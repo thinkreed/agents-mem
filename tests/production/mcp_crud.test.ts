@@ -3,7 +3,7 @@
  * @description Real production environment test with actual articles
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { handleMemCreate, handleMemRead, handleMemUpdate, handleMemDelete } from '../../src/tools/crud_handlers';
 import { runMigrations, resetManager } from '../../src/sqlite/migrations';
 import { resetConnection } from '../../src/sqlite/connection';
