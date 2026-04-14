@@ -15,6 +15,7 @@ coverage/
 
 # IDE
 .idea/
+.qwen/
 .vscode/
 *.swp
 *.swo
