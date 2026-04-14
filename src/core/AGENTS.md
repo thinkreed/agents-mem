@@ -1,10 +1,6 @@
 # src/core
 
-Foundation layer. All other modules import from here.
-
-## OVERVIEW
-
-TypeScript types, mem:// URI parsing, scope filtering, and constants. No runtime logic.
+Foundation layer. All modules import from here.
 
 ## TYPES
 
@@ -12,41 +8,32 @@ TypeScript types, mem:// URI parsing, scope filtering, and constants. No runtime
 |--------|----------|------|
 | MaterialURI | types.ts:10 | mem:// URI structure |
 | Scope | types.ts:49 | User/Agent/Team isolation |
-| EntityType | types.ts:60 | Entity union (Document, Asset, Conversation, Message, Fact, Team) |
-| FactType | types.ts:66 | Fact categorization |
-| Fact | types.ts:70 | Extracted fact with source/target |
-| TieredContent | types.ts:80 | L0/L1 content wrapper |
-| HybridSearchResult | types.ts:90 | Vector + FTS combined result |
+| EntityType | types.ts:60 | Entity union |
+| FactType | types.ts:73 | Fact categorization |
+| TieredContent | types.ts:113 | L0/L1 content wrapper |
 
 ## URI
 
-mem:// scheme parser and builder.
-
-- `buildURI(resource, id, scope)` - constructs URI string
-- `parseURI(uri: string)` - extracts MaterialURI object
-- `validateURI(uri: string)` - boolean validation
-- `URI_FORMAT` - regex pattern at uri.ts:8
+- `buildURI()` - constructs mem:// URI
+- `parseURI()` - extracts MaterialURI
+- `URI_FORMAT` - regex pattern
 
 ## SCOPE
 
-ScopeFilter class exists at scope.ts:141 and IS NOW WIRED to all vector queries.
-
-- `createScope(userId, agentId?, teamId?)` - Scope factory
-- `validateScope(scope)` - validates required fields
-- `scopeToString(scope)` - serialization
+- `createScope(userId, agentId?, teamId?)` - factory
+- `validateScope()` - validates required fields
 
 ## CONSTANTS
 
 ```typescript
-EMBED_DIMENSION = 768           // nomic-embed-text
-L0_TOKEN_BUDGET = 100           // minimal summary
-L1_TOKEN_BUDGET = 2000          // full content
-BASE_THRESHOLD = 0.5            // entity tree base
-DEPTH_FACTOR = 0.1              // exponential growth
-calculateThreshold(depth)       // θ(d) = 0.5 × e^(0.1d)
-STORAGE_DIR = ~/.agents_mem/    // SQLite + LanceDB
+EMBED_DIMENSION = 1024    // bge-m3
+L0_TOKEN_BUDGET = 100
+L1_TOKEN_BUDGET = 2000
+BASE_THRESHOLD = 0.7      // entity tree
+DEPTH_FACTOR = 0.1
+STORAGE_DIR = ~/.agents_mem/
 ```
 
 ## ANTI-PATTERNS
 
-- **No public index.ts**: Package has no root export barrel
+- **No public index.ts**: No root export barrel
