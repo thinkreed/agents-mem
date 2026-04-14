@@ -14,7 +14,7 @@ import { getAssetById, updateAsset, deleteAsset } from '../sqlite/assets';
 import { getFactById, searchFacts, updateFact, deleteFact, getFactsBySource } from '../sqlite/facts';
 import { getMemoryIndexByURI, deleteMemoryIndexByTarget } from '../sqlite/memory_index';
 // OpenViking HTTP API integration (replaces LanceDB)
-import { getOpenVikingClient, getURIAdapter, getScopeMapper } from '../openviking';
+import { getOpenVikingClient, getURIAdapter } from '../openviking';
 import { listMaterials } from '../materials/filesystem';
 import { traceFactToSource } from '../materials/trace';
 import { getFactExtractor } from '../facts/extractor';
@@ -343,10 +343,9 @@ export async function handleMemRead(params: {
         if (searchMode === 'hybrid') {
           // OpenViking find with hybrid mode (vector + FTS + rerank)
           const client = getOpenVikingClient();
-          const scopeMapper = getScopeMapper();
           const uriAdapter = getURIAdapter();
           
-          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          const targetUri = userId ? uriAdapter.buildTargetUri({ userId, agentId: scope?.agentId, teamId: scope?.teamId }, 'documents') : undefined;
           
           const findResult = await client.find({
             query: query.search as string,
@@ -375,10 +374,9 @@ export async function handleMemRead(params: {
         } else if (searchMode === 'fts') {
           // OpenViking find with FTS mode only
           const client = getOpenVikingClient();
-          const scopeMapper = getScopeMapper();
           const uriAdapter = getURIAdapter();
           
-          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          const targetUri = userId ? uriAdapter.buildTargetUri({ userId, agentId: scope?.agentId, teamId: scope?.teamId }, 'documents') : undefined;
           
           const findResult = await client.find({
             query: query.search as string,
@@ -407,10 +405,9 @@ export async function handleMemRead(params: {
         } else if (searchMode === 'semantic') {
           // OpenViking find with vector mode only
           const client = getOpenVikingClient();
-          const scopeMapper = getScopeMapper();
           const uriAdapter = getURIAdapter();
           
-          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          const targetUri = userId ? uriAdapter.buildTargetUri({ userId, agentId: scope?.agentId, teamId: scope?.teamId }, 'documents') : undefined;
           
           const findResult = await client.find({
             query: query.search as string,
@@ -439,10 +436,9 @@ export async function handleMemRead(params: {
         } else if (searchMode === 'progressive') {
           // OpenViking find with L0 tier filter
           const client = getOpenVikingClient();
-          const scopeMapper = getScopeMapper();
           const uriAdapter = getURIAdapter();
           
-          const targetUri = userId ? scopeMapper.mapToVikingTarget({ userId, agentId: scope?.agentId, teamId: scope?.teamId }) : undefined;
+          const targetUri = userId ? uriAdapter.buildTargetUri({ userId, agentId: scope?.agentId, teamId: scope?.teamId }, 'documents') : undefined;
           
           const findResult = await client.find({
             query: query.search as string,
