@@ -9,6 +9,9 @@
     "dev": "bun run src/mcp_server.ts",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit",
+    "lint:deps": "bun run scripts/lint-dependencies.ts",
+    "lint:docs": "bun run scripts/lint-docs.ts",
+    "doc:garden": "bun run scripts/doc-gardener.ts",
     "clean": "bun x rimraf dist",
     "prebuild": "bun x rimraf dist"
   },
