@@ -1,0 +1,71 @@
+---
+id: {{ fact.id }}
+fact_type: {{ fact.fact_type.value }}
+confidence: {{ fact.confidence }}
+verified: {{ fact.verified }}
+created_at: {{ fact.created_at.isoformat() if fact.created_at else 'N/A' }}
+source_uri: {{ fact.source_uri or 'N/A' }}
+related_facts: {{ related_facts|length }}
+---
+
+# 事实: {{ fact.id }}
+
+**类型**: {{ fact.fact_type.value }}  
+**置信度**: {{ fact.confidence }} {% if fact.confidence >= 0.9 %}(高){% elif fact.confidence >= 0.7 %}(中){% else %}(低){% endif %}  
+**验证状态**: {% if fact.verified %}✅ 已验证{% else %}⏳ 未验证{% endif %}
+
+## 内容
+
+{{ fact.content }}
+
+## 实体
+
+{% if fact.entities %}
+{% for entity in fact.entities %}
+- {{ entity }}
+{% endfor %}
+{% else %}
+*(无关联实体)*
+{% endif %}
+
+## 来源
+
+{% if trace.source_uri %}
+- **源文档**: [{{ trace.source_uri }}](../../L2-content/documents/{{ trace.source_uri.split('/')[-1] }}.md)
+{% endif %}
+{% if trace.l0_abstract %}
+- **L0摘要**: {{ trace.l0_abstract }}
+{% endif %}
+{% if trace.l1_overview %}
+- **L1概览**: {{ trace.l1_overview[:200] }}...
+{% endif %}
+
+## 追溯链
+
+{% if trace.trace_chain %}
+```
+fact-{{ fact.id }}
+    ↓
+{% for uri in trace.trace_chain %}
+{{ uri }}
+{% if not loop.last %}
+    ↓
+{% endif %}
+{% endfor %}
+```
+{% else %}
+*(无追溯链)*
+{% endif %}
+
+## 关联事实
+
+{% if related_facts %}
+{% for rf in related_facts %}
+- [{{ rf.id }}: {{ rf.content }}]({{ rf.id }}.md)
+{% endfor %}
+{% else %}
+*(无关联事实)*
+{% endif %}
+
+---
+*自动导出 | agents-mem-py v2.0 | L3-Knowledge*

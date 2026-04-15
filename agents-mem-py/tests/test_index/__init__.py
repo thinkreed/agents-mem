@@ -1,0 +1,3 @@
+"""
+Test index module package.
+"""

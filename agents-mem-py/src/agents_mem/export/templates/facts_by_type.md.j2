@@ -1,0 +1,48 @@
+# {{ fact_type }} 类型事实汇总
+
+**导出时间**: {{ exported_at|datetime_format if exported_at else 'N/A' }}  
+**范围**: {{ scope.user_id }} {% if scope.agent_id %}/ {{ scope.agent_id }}{% endif %}{% if scope.team_id %}/ {{ scope.team_id }}{% endif %}
+
+---
+
+## 事实列表
+
+{% if facts %}
+| ID | 内容 | 置信度 | 验证状态 |
+|----|------|--------|----------|
+{% for fact in facts %}
+| {{ fact.id }} | {{ fact.content[:80] }}{% if fact.content|length > 80 %}...{% endif %} | {{ fact.confidence }} | {% if fact.verified %}✅{% else %}⏳{% endif %} |
+{% endfor %}
+{% else %}
+*(无此类型事实)*
+{% endif %}
+
+---
+
+## 详细事实
+
+{% if facts %}
+{% for fact in facts %}
+### {{ fact.id }}
+
+**置信度**: {{ fact.confidence }}  
+**验证状态**: {% if fact.verified %}已验证{% else %}未验证{% endif %}  
+**来源**: {{ fact.source_uri or 'N/A' }}
+
+```
+{{ fact.content }}
+```
+
+{% if fact.entities %}
+**实体**: {{ fact.entities|join(', ') }}
+{% endif %}
+
+---
+
+{% endfor %}
+{% else %}
+*(无详细事实)*
+{% endif %}
+
+---
+*自动导出 | agents-mem-py v2.0 | L3-Knowledge*

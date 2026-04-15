@@ -1,0 +1,84 @@
+---
+id: {{ content.id }}
+uri: {{ content.uri }}
+created_at: {{ content.created_at.isoformat() if content.created_at else 'N/A' }}
+updated_at: {{ content.updated_at.isoformat() if content.updated_at else 'N/A' }}
+content_type: {{ content.content_type.value if content.content_type else 'note' }}
+token_count: {{ content.token_count or 'N/A' }}
+---
+
+# {{ content.title or 'Document ' + content.id }}
+
+**URI**: `{{ content.uri }}`  
+**创建**: {{ content.created_at|datetime_format }}  
+**更新**: {{ content.updated_at|datetime_format }}  
+**Token数**: {{ '{:,}'.format(content.token_count) if content.token_count else 'N/A' }}
+
+---
+
+## L0 快速摘要 (~100 tokens)
+
+{% if l0_view %}
+{{ l0_view }}
+{% else %}
+*(无 L0 摘要)*
+{% endif %}
+
+---
+
+## L1 详细概览 (~2000 tokens)
+
+{% if l1_view %}
+### 摘要
+{{ l1_view }}
+{% else %}
+*(无 L1 概览)*
+{% endif %}
+
+---
+
+## L2 完整内容
+
+```
+{{ l2_view }}
+```
+
+---
+
+## 关联知识 (L3)
+
+### 提取的事实
+{% if related_facts %}
+{% for fact in related_facts %}
+- [{{ fact.id }}: {{ fact.content }}](../../L3-knowledge/facts/{{ fact.id }}.md) `{{ fact.fact_type }}` (置信度: {{ fact.confidence }})
+{% endfor %}
+{% else %}
+*(无关联事实)*
+{% endif %}
+
+### 来源信息
+{% if content.source_url %}
+- **来源URL**: {{ content.source_url }}
+{% endif %}
+{% if content.source_path %}
+- **来源路径**: {{ content.source_path }}
+{% endif %}
+
+{% if messages %}
+---
+## 消息记录
+
+{% for msg in messages %}
+### 消息 {{ loop.index }}
+**角色**: {{ msg.role }}  
+**时间**: {{ msg.created_at|datetime_format if msg.created_at else 'N/A' }}
+
+```
+{{ msg.content }}
+```
+
+{% endfor %}
+{% endif %}
+
+---
+*自动导出 | agents-mem-py v2.0 | L2-Content*

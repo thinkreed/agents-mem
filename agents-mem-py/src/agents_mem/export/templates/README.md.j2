@@ -1,0 +1,117 @@
+# 记忆导出概览
+
+**导出时间**: {{ exported_at|datetime_format }}  
+**用户ID**: {{ scope.user_id }}  
+{% if scope.agent_id %}**AgentID**: {{ scope.agent_id }}{% endif %}
+{% if scope.team_id %}**TeamID**: {{ scope.team_id }}{% endif %}
+
+---
+
+## 导出统计
+
+### L2 Content 层
+
+| 资源类型 | 数量 |
+|----------|------|
+| Documents | {{ l2_stats.documents or 0 }} |
+| Conversations | {{ l2_stats.conversations or 0 }} |
+| Tiered Views | {{ l2_stats.tiered_views_generated or 0 }} |
+
+### L3 Knowledge 层
+
+| 资源类型 | 数量 |
+|----------|------|
+| Facts | {{ l3_stats.facts or 0 }} |
+| Entities | {{ l3_stats.entities or 0 }} |
+{% if knowledge_stats %}
+{% if knowledge_stats.facts_by_type %}
+|---|
+{% for fact_type, count in knowledge_stats.facts_by_type.items() %}
+| {{ fact_type }} | {{ count }} |
+{% endfor %}
+{% endif %}
+{% endif %}
+
+---
+
+## 目录结构
+
+```
+{{ scope.user_id }}/
+├── README.md                    # 本文件
+├── metadata.json                # 导出元数据
+│
+├── L2-content/                  # 内容层导出
+│   ├── documents/
+│   │   └── {YYYY-MM}/
+│   │       └── {doc-id}.md
+│   └── conversations/
+│       └── {YYYY-MM}/
+│           └── {conv-id}.md
+│
+└── L3-knowledge/                # 知识层导出
+    ├── facts/
+    │   ├── {YYYY-MM}/
+    │   │   └── {fact-id}.md
+    │   └── by-type/
+    │       ├── preferences.md
+    │       ├── decisions.md
+    │       └── observations.md
+    │
+    └── entities/
+        └── entity-graph.md
+```
+
+---
+
+## 使用指南
+
+### 查看内容
+
+```bash
+# 查看特定月份的文档
+cat L2-content/documents/2025-04/doc-001.md
+
+# 搜索特定关键词
+grep -r "关键词" L2-content/
+```
+
+### 查看知识
+
+```bash
+# 查看实体关联图谱
+cat L3-knowledge/entities/entity-graph.md
+
+# 查看特定类型的事实
+cat L3-knowledge/facts/by-type/preferences.md
+```
+
+### Git 版本控制
+
+```bash
+# 初始化 Git 仓库
+git init
+
+# 添加所有导出文件
+git add .
+
+# 提交
+git commit -m "记忆导出 {{ exported_at.strftime('%Y-%m-%d') }}"
+```
+
+---
+
+{% if knowledge_stats %}
+## 知识层详情
+
+{% if knowledge_stats.average_confidence %}
+- **平均置信度**: {{ knowledge_stats.average_confidence }}
+{% endif %}
+{% if knowledge_stats.max_depth %}
+- **实体树最大深度**: {{ knowledge_stats.max_depth }}
+{% endif %}
+
+{% endif %}
+
+---
+*自动导出 | agents-mem-py v2.0 | agents-mem export tool*

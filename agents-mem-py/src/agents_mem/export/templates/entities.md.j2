@@ -1,0 +1,66 @@
+# 实体关联图谱
+
+**导出时间**: {{ exported_at|datetime_format }}  
+**范围**: {{ scope.user_id }} {% if scope.agent_id %}/ {{ scope.agent_id }}{% endif %}{% if scope.team_id %}/ {{ scope.team_id }}{% endif %}
+
+## 统计信息
+
+- **总实体数**: {{ entity_tree.total_entities if entity_tree else entities|length }}
+- **总事实数**: {{ entity_tree.total_facts if entity_tree else 0 }}
+- **最大深度**: {{ entity_tree.max_depth if entity_tree else 0 }}
+- **基础阈值**: {{ entity_tree.threshold_base if entity_tree else 0.7 }}
+
+---
+
+## 核心实体
+
+{% if entities %}
+{% for entity in entities %}
+### 实体: {{ entity.name }}
+
+**类型**: {{ entity.type }}  
+**重要性**: {{ entity.importance }}  
+**事实数量**: {{ entity.fact_count }}  
+**深度层级**: {{ entity.depth }}
+
+{% if entity.attributes %}
+**属性**:
+{% for key, value in entity.attributes.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
+
+{% if entity.parent_id %}
+**父节点**: {{ entity.parent_id }}
+{% endif %}
+
+{% if entity.children %}
+**子节点**:
+{% for child_id in entity.children %}
+- {{ child_id }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+*(无实体)*
+{% endif %}
+
+---
+
+## 关联网络
+
+{{ mermaid_graph }}
+
+---
+
+## 实体列表 (按重要性排序)
+
+| 名称 | 类型 | 事实数 | 重要性 |
+|------|------|--------|--------|
+{% for entity in entities|sort(attribute='importance', reverse=true) %}
+| {{ entity.name }} | {{ entity.type }} | {{ entity.fact_count }} | {{ entity.importance }} |
+{% endfor %}
+
+---
+*自动导出 | agents-mem-py v2.0 | L3-Knowledge*
