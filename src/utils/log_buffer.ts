@@ -3,6 +3,8 @@
  * @description Async log buffer for non-blocking log output
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import { LogLevel } from './logger';
 
 /**
@@ -86,6 +88,7 @@ export const DEFAULT_BUFFER_CONFIG: LogBufferConfig = {
  * - Retry logic on flush failure
  * - Graceful shutdown with timeout
  */
+@singleton()
 export class LogBuffer {
   private config: LogBufferConfig;
   private queue: LogEntry[] = [];
@@ -100,11 +103,8 @@ export class LogBuffer {
   /**
    * Create a new LogBuffer instance
    */
-  constructor(config?: Partial<LogBufferConfig>) {
-    this.config = {
-      ...DEFAULT_BUFFER_CONFIG,
-      ...config,
-    };
+  constructor() {
+    this.config = DEFAULT_BUFFER_CONFIG;
     this.currentBufferSize = this.config.bufferSize;
   }
 
@@ -381,30 +381,22 @@ export class LogBuffer {
   }
 }
 
-/**
- * Singleton instance
- */
-let logBufferInstance: LogBuffer | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get the global LogBuffer singleton
- * 
- * - Lazy initialization on first call
- * - Uses DEFAULT_BUFFER_CONFIG
+ * @deprecated Use container.resolve(LogBuffer)
  */
 export function getLogBuffer(): LogBuffer {
-  if (!logBufferInstance) {
-    logBufferInstance = new LogBuffer(DEFAULT_BUFFER_CONFIG);
-  }
-  return logBufferInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(LogBuffer);
 }
 
 /**
- * Reset the singleton (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetLogBuffer(): void {
-  if (logBufferInstance) {
-    logBufferInstance.stopFlushTimer();
-    logBufferInstance = null;
-  }
+  const { container } = require('tsyringe');
+  container.reset();
 }

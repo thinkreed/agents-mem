@@ -3,6 +3,8 @@
  * @description OpenViking HTTP Client SDK
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import type {
   OpenVikingConfig,
   AddResourceParams,
@@ -18,15 +20,13 @@ import { getConfig } from './config';
 /**
  * OpenViking HTTP Client
  */
+@singleton()
 export class OpenVikingHTTPClient {
   private config: OpenVikingConfig;
   private baseUrl: string;
-  
-  constructor(config?: Partial<OpenVikingConfig>) {
+
+  constructor() {
     this.config = getConfig();
-    if (config) {
-      this.config = { ...this.config, ...config };
-    }
     this.baseUrl = this.config.baseUrl;
   }
   
@@ -317,32 +317,31 @@ private async request(
   }
 }
 
-/**
- * Singleton client instance
- */
-let clientInstance: OpenVikingHTTPClient | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get singleton HTTP client
+ * @deprecated Use container.resolve(OpenVikingHTTPClient)
  */
 export function getOpenVikingClient(): OpenVikingHTTPClient {
-  if (!clientInstance) {
-    clientInstance = new OpenVikingHTTPClient();
-  }
-  return clientInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(OpenVikingHTTPClient);
 }
 
 /**
- * Initialize client with config
+ * @deprecated Use container.register with custom config
  */
 export function initClient(config?: Partial<OpenVikingConfig>): OpenVikingHTTPClient {
-  clientInstance = new OpenVikingHTTPClient(config);
-  return clientInstance;
+  const { container } = require('tsyringe');
+  container.register('OpenVikingClient', { useValue: new OpenVikingHTTPClient(config) });
+  return container.resolve(OpenVikingHTTPClient);
 }
 
 /**
- * Reset client (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetClient(): void {
-  clientInstance = null;
+  const { container } = require('tsyringe');
+  container.reset();
 }

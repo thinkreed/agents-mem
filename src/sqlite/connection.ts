@@ -3,6 +3,8 @@
  * @description SQLite connection management using Bun built-in SQLite
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import { Database } from 'bun:sqlite';
 import { getSQLitePath, ensureDir } from '../utils/file';
 import { SQLITE_WAL_MODE } from '../core/constants';
@@ -12,11 +14,6 @@ import * as path from 'path';
  * Default database path
  */
 let databasePath: string = getSQLitePath();
-
-/**
- * Singleton connection instance
- */
-let connectionInstance: DatabaseConnection | null = null;
 
 /**
  * Statement cache
@@ -29,12 +26,16 @@ interface StatementCache {
 /**
  * DatabaseConnection class wrapper
  */
+@singleton()
 export class DatabaseConnection {
   private db: Database;
   private open: boolean = true;
   private stmtCache: Map<string, ReturnType<Database['prepare']>> = new Map();
-  
-  constructor(dbPath: string = ':memory:') {
+
+  constructor() {
+    // Use database path from env or default
+    const dbPath = process.env.AGENTS_MEM_DB_PATH || databasePath;
+    
     // Ensure directory exists for file-based databases
     if (dbPath !== ':memory:') {
       const dir = path.dirname(dbPath);
@@ -42,14 +43,14 @@ export class DatabaseConnection {
         ensureDir(dir);
       }
     }
-    
+
     this.db = new Database(dbPath);
-    
+
     // Enable WAL mode if configured
     if (SQLITE_WAL_MODE && dbPath !== ':memory:') {
       this.db.run('PRAGMA journal_mode = WAL');
     }
-    
+
     // Enable foreign keys
     this.db.run('PRAGMA foreign_keys = ON');
   }
@@ -154,70 +155,65 @@ export class DatabaseConnection {
   }
 }
 
+// ============================================================================
+// Backward Compatibility Helpers (for gradual migration)
+// ============================================================================
+
 /**
- * Get singleton connection
+ * Get database connection via container
+ * @deprecated Use container.resolve(DatabaseConnection) or constructor injection
  */
 export function getConnection(): DatabaseConnection {
-  if (!connectionInstance) {
-    connectionInstance = new DatabaseConnection(databasePath);
-  }
-  return connectionInstance;
+  // Dynamic import to avoid circular dependency
+  const { container } = require('tsyringe');
+  return container.resolve(DatabaseConnection);
 }
 
 /**
- * Close singleton connection
- */
-export function closeConnection(): void {
-  if (connectionInstance) {
-    connectionInstance.close();
-    connectionInstance = null;
-  }
-}
-
-/**
- * Reset singleton connection (close and create new)
+ * @deprecated Use container.reset()
  */
 export function resetConnection(): void {
-  closeConnection();
+  const { container } = require('tsyringe');
+  container.reset();
 }
 
 /**
- * Check if singleton connection is open
+ * @deprecated Use container.resolve(DatabaseConnection).isOpen()
  */
 export function isConnectionOpen(): boolean {
-  return connectionInstance?.isOpen() ?? false;
+  return getConnection().isOpen();
 }
 
 /**
- * Get database path
+ * @deprecated Use container.resolve(DatabaseConnection).getRaw()
  */
 export function getDatabasePath(): string {
   return databasePath;
 }
 
 /**
- * Set database path (requires resetConnection to take effect)
+ * @deprecated Set via environment variable AGENTS_MEM_DB_PATH
  */
 export function setDatabasePath(path: string): void {
-  databasePath = path;
+  process.env.AGENTS_MEM_DB_PATH = path;
 }
 
 /**
- * Execute query using singleton connection
+ * Execute query using container connection
  */
 export function executeQuery<T = unknown>(sql: string, params?: unknown[]): T[] {
   return getConnection().query<T>(sql, params);
 }
 
 /**
- * Execute single statement using singleton connection
+ * Execute single statement using container connection
  */
 export function executeRun(sql: string, params?: unknown[]): ReturnType<Database['run']> {
   return getConnection().run(sql, params);
 }
 
 /**
- * Execute transaction using singleton connection
+ * Execute transaction using container connection
  */
 export function executeTransaction(sqls: string[]): void {
   getConnection().transaction(() => {
@@ -228,7 +224,7 @@ export function executeTransaction(sqls: string[]): void {
 }
 
 /**
- * Prepare statement using singleton connection
+ * Prepare statement using container connection
  */
 export function prepareStatement(sql: string): ReturnType<Database['prepare']> {
   return getConnection().prepare(sql);

@@ -3,15 +3,21 @@
  * @description L0/L1 content generator with LLM support
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
+import { TOKENS } from '../core/tokens';
+import { inject } from 'tsyringe';
+import type { ILLMClient } from '../core/interfaces';
 import { estimateTokens, truncateToTokens } from '../utils/token_estimate';
 import { L0_TOKEN_BUDGET, L1_TOKEN_BUDGET } from '../core/constants';
-import { createLLMClient, resetLLMClient } from '../llm/ollama';
 import { buildL0AbstractPrompt, buildL1OverviewPrompt } from '../llm/prompts';
 
 /**
  * Tiered content generator with LLM support
  */
+@singleton()
 export class TieredGenerator {
+  constructor(@inject(TOKENS.LLMClient) private llmClient: ILLMClient) {}
   /**
    * Generate L0 abstract from content using LLM
    */
@@ -27,9 +33,8 @@ export class TieredGenerator {
     }
 
     try {
-      const llmClient = createLLMClient();
       const prompt = buildL0AbstractPrompt(content);
-      const abstract = await llmClient.generate(prompt, {
+      const abstract = await this.llmClient.generate(prompt, {
         temperature: 0.5,
         maxTokens: L0_TOKEN_BUDGET + 20
       });
@@ -61,9 +66,8 @@ export class TieredGenerator {
     }
 
     try {
-      const llmClient = createLLMClient();
       const prompt = buildL1OverviewPrompt(content);
-      const overview = await llmClient.generate(prompt, {
+      const overview = await this.llmClient.generate(prompt, {
         temperature: 0.6,
         maxTokens: L1_TOKEN_BUDGET + 50
       });
@@ -91,25 +95,22 @@ export class TieredGenerator {
   }
 }
 
-/**
- * Singleton generator
- */
-let generatorInstance: TieredGenerator | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Create/get tiered generator
+ * @deprecated Use container.resolve(TieredGenerator)
  */
 export function createTieredGenerator(): TieredGenerator {
-  if (!generatorInstance) {
-    generatorInstance = new TieredGenerator();
-  }
-  return generatorInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(TieredGenerator);
 }
 
 /**
- * Reset generator (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetTieredGenerator(): void {
-  generatorInstance = null;
-  resetLLMClient();
+  const { container } = require('tsyringe');
+  container.reset();
 }

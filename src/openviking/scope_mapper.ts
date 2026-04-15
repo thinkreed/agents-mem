@@ -3,6 +3,8 @@
  * @description Scope mapping between agents-mem and OpenViking
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import type { Scope } from '../core/types';
 import type { OpenVikingConfig } from './types';
 import { getConfig } from './config';
@@ -22,14 +24,12 @@ export interface VikingScope {
 /**
  * Scope Mapper - converts agents-mem Scope to OpenViking context
  */
+@singleton()
 export class ScopeMapper {
   private config: OpenVikingConfig;
-  
-  constructor(config?: Partial<OpenVikingConfig>) {
+
+  constructor() {
     this.config = getConfig();
-    if (config) {
-      this.config = { ...this.config, ...config };
-    }
   }
   
   /**
@@ -164,24 +164,22 @@ export class ScopeMapper {
   }
 }
 
-/**
- * Singleton mapper instance
- */
-let mapperInstance: ScopeMapper | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get singleton scope mapper
+ * @deprecated Use container.resolve(ScopeMapper)
  */
 export function getScopeMapper(): ScopeMapper {
-  if (!mapperInstance) {
-    mapperInstance = new ScopeMapper();
-  }
-  return mapperInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(ScopeMapper);
 }
 
 /**
- * Reset mapper (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetScopeMapper(): void {
-  mapperInstance = null;
+  const { container } = require('tsyringe');
+  container.reset();
 }

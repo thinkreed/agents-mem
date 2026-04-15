@@ -3,11 +3,14 @@
  * @description MCP stdio server entry point with 4 CRUD tools
  */
 
+import 'reflect-metadata';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { container } from './core/registration';
+import { TOKENS } from './core/tokens';
+import type { IOpenVikingClient } from './core/interfaces';
 import { runMigrations } from './sqlite/migrations';
-import { getOpenVikingClient } from './openviking';
 import { handleMemCreate, handleMemRead, handleMemUpdate, handleMemDelete } from './tools/crud_handlers';
 
 /**
@@ -19,7 +22,7 @@ async function createMCPServer(): Promise<McpServer> {
   
   // Check OpenViking backend health
   try {
-    const client = getOpenVikingClient();
+    const client = container.resolve<IOpenVikingClient>(TOKENS.OpenVikingClient);
     const health = await client.healthCheck();
     if (health.status === 'ok') {
       console.error('[OpenViking] Backend connected');

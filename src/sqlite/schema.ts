@@ -6,7 +6,7 @@
 /**
  * Schema version (increment when schema changes)
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * All table names
@@ -23,10 +23,8 @@ export const TABLE_NAMES = [
   'conversations',
   'messages',
   'facts',
-  'entity_nodes',
   'extraction_status',
-  'memory_access_log',
-  'queue_jobs'
+  'memory_access_log'
 ] as const;
 
 /**
@@ -246,27 +244,6 @@ CREATE TABLE facts (
   updated_at REAL NOT NULL DEFAULT (strftime('%s', 'now'))
 )`;
 
-const CREATE_ENTITY_NODES = `
-CREATE TABLE entity_nodes (
-  id TEXT PRIMARY KEY,
-  parent_id TEXT,
-  depth INTEGER NOT NULL DEFAULT 0,
-  path TEXT,
-  child_count INTEGER DEFAULT 0,
-  user_id TEXT NOT NULL,
-  agent_id TEXT,
-  team_id TEXT,
-  is_global BOOLEAN DEFAULT FALSE,
-  entity_name TEXT NOT NULL,
-  aggregated_content TEXT,
-  threshold REAL,
-  openviking_uri TEXT,
-  linked_fact_ids TEXT,
-  created_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
-  updated_at REAL NOT NULL DEFAULT (strftime('%s', 'now')),
-  FOREIGN KEY (parent_id) REFERENCES entity_nodes(id)
-)`;
-
 // ============================================================================
 // AUDIT & LOGGING
 // ============================================================================
@@ -297,26 +274,6 @@ CREATE TABLE memory_access_log (
   timestamp REAL NOT NULL DEFAULT (strftime('%s', 'now')),
   success BOOLEAN NOT NULL,
   reason TEXT
-)`;
-
-// ============================================================================
-// QUEUE JOBS
-// ============================================================================
-
-const CREATE_QUEUE_JOBS = `
-CREATE TABLE queue_jobs (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  payload TEXT NOT NULL,
-  retries INTEGER NOT NULL DEFAULT 0,
-  result_data TEXT,
-  error TEXT,
-  user_id TEXT NOT NULL,
-  agent_id TEXT,
-  team_id TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
 )`;
 
 // ============================================================================
@@ -361,11 +318,6 @@ CREATE INDEX idx_facts_scope ON facts(user_id, agent_id, team_id);
 CREATE INDEX idx_facts_source ON facts(source_type, source_id);
 CREATE INDEX idx_facts_type ON facts(fact_type)`;
 
-const INDEXES_ENTITY_NODES = `
-CREATE INDEX idx_entity_parent ON entity_nodes(parent_id);
-CREATE INDEX idx_entity_depth ON entity_nodes(depth);
-CREATE INDEX idx_entity_scope ON entity_nodes(user_id, agent_id, team_id)`;
-
 const INDEXES_EXTRACTION_STATUS = `
 CREATE INDEX idx_extraction_target ON extraction_status(target_type, target_id);
 CREATE INDEX idx_extraction_status ON extraction_status(status)`;
@@ -374,10 +326,6 @@ const INDEXES_MEMORY_ACCESS_LOG = `
 CREATE INDEX idx_access_log_user ON memory_access_log(user_id);
 CREATE INDEX idx_access_log_memory ON memory_access_log(memory_type, memory_id);
 CREATE INDEX idx_access_log_time ON memory_access_log(timestamp)`;
-
-const INDEXES_QUEUE_JOBS = `
-CREATE INDEX idx_queue_status ON queue_jobs(status);
-CREATE INDEX idx_queue_type ON queue_jobs(type)`;
 
 // ============================================================================
 // Table SQL Map
@@ -395,10 +343,8 @@ const CREATE_TABLE_MAP: Record<SchemaTable, string> = {
   conversations: CREATE_CONVERSATIONS,
   messages: CREATE_MESSAGES,
   facts: CREATE_FACTS,
-  entity_nodes: CREATE_ENTITY_NODES,
   extraction_status: CREATE_EXTRACTION_STATUS,
-  memory_access_log: CREATE_MEMORY_ACCESS_LOG,
-  queue_jobs: CREATE_QUEUE_JOBS
+  memory_access_log: CREATE_MEMORY_ACCESS_LOG
 };
 
 const INDEXES_MAP: Record<SchemaTable, string> = {
@@ -413,10 +359,8 @@ const INDEXES_MAP: Record<SchemaTable, string> = {
   conversations: INDEXES_CONVERSATIONS,
   messages: INDEXES_MESSAGES,
   facts: INDEXES_FACTS,
-  entity_nodes: INDEXES_ENTITY_NODES,
   extraction_status: INDEXES_EXTRACTION_STATUS,
-  memory_access_log: INDEXES_MEMORY_ACCESS_LOG,
-  queue_jobs: INDEXES_QUEUE_JOBS
+  memory_access_log: INDEXES_MEMORY_ACCESS_LOG
 };
 
 // ============================================================================

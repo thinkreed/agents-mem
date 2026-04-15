@@ -4,6 +4,8 @@
  * Records only metadata (userId, resourceId, operation) - no sensitive content
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import { getLogBuffer } from './log_buffer';
 import { parseLoggerConfig } from './config';
 import { LogLevel } from './logger_types';
@@ -65,6 +67,7 @@ export const DEFAULT_AUDIT_CONFIG: AuditLoggerConfig = {
  * - Enqueues to LogBuffer for async processing
  * - Does NOT log sensitive content (metadata only)
  */
+@singleton()
 export class AuditLogger {
   private config: AuditLoggerConfig;
 
@@ -72,10 +75,12 @@ export class AuditLogger {
    * Create a new AuditLogger instance
    * @param config - Logger configuration (defaults to DEFAULT_AUDIT_CONFIG)
    */
-  constructor(config?: AuditLoggerConfig) {
+  constructor() {
+    const config = parseLoggerConfig();
     this.config = {
       ...DEFAULT_AUDIT_CONFIG,
-      ...config,
+      enabled: config.auditEnabled ?? DEFAULT_AUDIT_CONFIG.enabled,
+      samplingRate: config.samplingRate ?? DEFAULT_AUDIT_CONFIG.samplingRate,
     };
   }
 
@@ -133,36 +138,22 @@ export class AuditLogger {
   }
 }
 
-/**
- * Singleton instance for global audit logger
- */
-let auditLoggerInstance: AuditLogger | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get the global AuditLogger singleton
- * 
- * - Lazy initialization on first call
- * - Uses config.auditEnabled and config.samplingRate
- * 
- * @returns AuditLogger instance
+ * @deprecated Use container.resolve(AuditLogger)
  */
 export function getAuditLogger(): AuditLogger {
-  if (!auditLoggerInstance) {
-    const config = parseLoggerConfig();
-    
-    auditLoggerInstance = new AuditLogger({
-      enabled: config.auditEnabled,
-      samplingRate: config.samplingRate,
-    });
-  }
-  return auditLoggerInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(AuditLogger);
 }
 
 /**
- * Reset the singleton (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetAuditLogger(): void {
-  if (auditLoggerInstance) {
-    auditLoggerInstance = null;
-  }
+  const { container } = require('tsyringe');
+  container.reset();
 }

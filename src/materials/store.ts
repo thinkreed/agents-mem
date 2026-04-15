@@ -8,7 +8,6 @@ import { createAsset, getAssetById } from '../sqlite/assets';
 import { createMemoryIndex } from '../sqlite/memory_index';
 import { buildMaterialURI } from './uri_resolver';
 import { generateUUID } from '../utils/uuid';
-import { getEmbeddingQueue } from '../queue';
 import { getOpenVikingClient, getScopeMapper, getURIAdapter } from '../openviking';
 
 /**
