@@ -3,6 +3,8 @@
  * @description Ollama embedding client with multilingual support
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import { EMBED_DIMENSION } from '../core/constants';
 
 /**
@@ -33,6 +35,7 @@ export interface EmbedderConfig {
 /**
  * Ollama embedder class
  */
+@singleton()
 export class OllamaEmbedder {
   private model: string;
   private url: string;
@@ -96,30 +99,27 @@ export class OllamaEmbedder {
   }
 }
 
-/**
- * Singleton embedder instance
- */
-let embedderInstance: OllamaEmbedder | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Create/get singleton embedder
+ * @deprecated Use container.resolve(OllamaEmbedder)
  */
 export function createEmbedder(config?: EmbedderConfig): OllamaEmbedder {
-  if (!embedderInstance) {
-    embedderInstance = new OllamaEmbedder(config);
-  }
-  return embedderInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(OllamaEmbedder);
 }
 
 /**
- * Get embedding using singleton
+ * @deprecated Use container.resolve(OllamaEmbedder).getEmbedding()
  */
 export async function getEmbedding(text: string): Promise<Float32Array> {
   return createEmbedder().getEmbedding(text);
 }
 
 /**
- * Get embeddings using singleton
+ * @deprecated Use container.resolve(OllamaEmbedder).getEmbeddings()
  */
 export async function getEmbeddings(texts: string[]): Promise<Float32Array[]> {
   return createEmbedder().getEmbeddings(texts);

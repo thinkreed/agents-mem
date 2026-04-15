@@ -3,6 +3,9 @@
  * @description Ollama LLM client for text generation
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
+
 /**
  * Default LLM model
  */
@@ -50,6 +53,7 @@ export interface GenerateOptions {
 /**
  * Ollama LLM client class
  */
+@singleton()
 export class OllamaLLMClient {
   private model: string;
   private url: string;
@@ -201,24 +205,22 @@ export class OllamaLLMClient {
   }
 }
 
-/**
- * Singleton LLM client instance
- */
-let llmClientInstance: OllamaLLMClient | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Create/get singleton LLM client
+ * @deprecated Use container.resolve(OllamaLLMClient)
  */
 export function createLLMClient(config?: LLMClientConfig): OllamaLLMClient {
-  if (!llmClientInstance) {
-    llmClientInstance = new OllamaLLMClient(config);
-  }
-  return llmClientInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(OllamaLLMClient);
 }
 
 /**
- * Reset singleton (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetLLMClient(): void {
-  llmClientInstance = null;
+  const { container } = require('tsyringe');
+  container.reset();
 }

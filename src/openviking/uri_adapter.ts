@@ -3,6 +3,8 @@
  * @description URI conversion between mem:// and viking:// schemes
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
 import type { Scope, EntityType } from '../core/types';
 import type { VikingURI, VikingResourceType } from './types';
 import { parseURI, buildURI } from '../core/uri';
@@ -24,6 +26,7 @@ const ENTITY_TO_VIKING: Record<EntityType, VikingResourceType> = {
 /**
  * URI Adapter - converts between mem:// and viking:// schemes
  */
+@singleton()
 export class URIAdapter {
   /**
    * Convert mem:// URI to viking:// URI
@@ -212,24 +215,22 @@ private extractEntityFromPath(path: string[]): { entityType: EntityType; id: str
   }
 }
 
-/**
- * Singleton adapter instance
- */
-let adapterInstance: URIAdapter | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get singleton URI adapter
+ * @deprecated Use container.resolve(URIAdapter)
  */
 export function getURIAdapter(): URIAdapter {
-  if (!adapterInstance) {
-    adapterInstance = new URIAdapter();
-  }
-  return adapterInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(URIAdapter);
 }
 
 /**
- * Reset adapter (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetURIAdapter(): void {
-  adapterInstance = null;
+  const { container } = require('tsyringe');
+  container.reset();
 }

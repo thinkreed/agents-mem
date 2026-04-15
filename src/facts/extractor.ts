@@ -3,10 +3,14 @@
  * @description Fact extraction from content with LLM support
  */
 
+import 'reflect-metadata';
+import { singleton } from 'tsyringe';
+import { TOKENS } from '../core/tokens';
+import { inject } from 'tsyringe';
+import type { ILLMClient } from '../core/interfaces';
 import { createFact, FactInput } from '../sqlite/facts';
 import { createExtractionStatus, updateExtractionStatus } from '../sqlite/extraction_status';
 import { generateUUID } from '../utils/uuid';
-import { createLLMClient } from '../llm/ollama';
 import { buildFactExtractionPrompt } from '../llm/prompts';
 
 /**
@@ -27,7 +31,9 @@ const VALID_FACT_TYPES = ['preference', 'decision', 'observation', 'conclusion']
 /**
  * Fact extractor with LLM support
  */
+@singleton()
 export class FactExtractor {
+  constructor(@inject(TOKENS.LLMClient) private llmClient: ILLMClient) {}
   /**
    * Extract facts from content using LLM
    */
@@ -38,10 +44,8 @@ export class FactExtractor {
     }
 
     try {
-      const llmClient = createLLMClient();
       const prompt = buildFactExtractionPrompt(content);
-
-      const facts = await llmClient.generateJSON<ExtractedFact[]>(prompt, []);
+      const facts = await this.llmClient.generateJSON<ExtractedFact[]>(prompt, []);
 
       // Validate and filter facts
       return this.validateFacts(facts);
@@ -134,24 +138,22 @@ export class FactExtractor {
   }
 }
 
-/**
- * Singleton extractor
- */
-let extractorInstance: FactExtractor | null = null;
+// ============================================================================
+// Backward Compatibility Helpers
+// ============================================================================
 
 /**
- * Get fact extractor
+ * @deprecated Use container.resolve(FactExtractor)
  */
 export function getFactExtractor(): FactExtractor {
-  if (!extractorInstance) {
-    extractorInstance = new FactExtractor();
-  }
-  return extractorInstance;
+  const { container } = require('tsyringe');
+  return container.resolve(FactExtractor);
 }
 
 /**
- * Reset extractor (for testing)
+ * @deprecated Use container.reset()
  */
 export function resetFactExtractor(): void {
-  extractorInstance = null;
+  const { container } = require('tsyringe');
+  container.reset();
 }

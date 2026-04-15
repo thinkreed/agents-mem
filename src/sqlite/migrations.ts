@@ -3,7 +3,8 @@
  * @description SQLite migration management
  */
 
-import { DatabaseConnection, getConnection, executeQuery, executeRun } from './connection';
+import { DatabaseConnection } from './connection';
+import { container } from 'tsyringe';
 import { getSchemaStatements, SCHEMA_VERSION, getTableNames } from './schema';
 
 /**
@@ -137,11 +138,23 @@ export class MigrationManager {
             this.db.exec(stmt);
           }
         }
-        
+
         // Record migration
         this.db.run(
           'INSERT INTO migration_history (version, description) VALUES (?, ?)',
           [version, 'Initial schema creation']
+        );
+      });
+    } else if (version === 2) {
+      // Version 2: Drop deprecated queue_jobs and entity_nodes tables
+      this.db.transaction(() => {
+        this.db.exec('DROP TABLE IF EXISTS queue_jobs');
+        this.db.exec('DROP TABLE IF EXISTS entity_nodes');
+
+        // Record migration
+        this.db.run(
+          'INSERT INTO migration_history (version, description) VALUES (?, ?)',
+          [version, 'Drop deprecated queue_jobs and entity_nodes tables']
         );
       });
     } else {
@@ -220,7 +233,7 @@ let managerInstance: MigrationManager | null = null;
  */
 function getManager(): MigrationManager {
   if (!managerInstance) {
-    managerInstance = new MigrationManager(getConnection());
+    managerInstance = new MigrationManager(container.resolve(DatabaseConnection));
   }
   return managerInstance;
 }
