@@ -78,10 +78,10 @@
 
 | 检查 | 命令 | 失败条件 |
 |------|------|----------|
-| 类型检查 | `bun run typecheck` | 任何错误 |
-| 测试 | `bun test` | 任何失败 |
-| 依赖边界 | `bun run lint:deps` | 任何违规 |
-| 文档检查 | `bun run lint:docs` | 任何 error |
+| 类型检查 | `pyright src/agents_mem` | 任何错误 |
+| 测试 | `pytest` | 任何失败 |
+| 代码风格 | `ruff check src/agents_mem` | 任何违规 |
+| 文档检查 | 手动验证链接 | 任何 error |
 
 ### 定期扫描
 
@@ -115,16 +115,14 @@
 ## 五、改进指南
 
 ### 提升代码质量
-1. 运行 `bun run typecheck` 修复所有 any 类型
+1. 运行 `pyright src/agents_mem` 修复所有类型错误
 2. 补充测试至 100% 覆盖
 3. 拆分大文件 (>500 行)
 
 ### 提升架构一致性
-1. 运行 `bun run lint:deps` 修复依赖违规
-2. 确保所有模块遵循分层架构
-3. 统一命名规范
+1. 确保所有模块遵循分层架构
+2. 统一命名规范
 
 ### 提升文档完整性
-1. 运行 `bun run lint:docs` 修复死链接
-2. 更新过时设计文档
-3. 保持 AGENTS.md ≤100 行
+1. 更新过时设计文档
+2. 保持 AGENTS.md ≤150 行

@@ -42,7 +42,7 @@ from agents_mem.content.resources.conversation import (
     ConversationCreateInput,
     MessageCreateInput,
 )
-from agents_mem.llm import LLMClientProtocol, MockLLMClient
+from agents_mem.llm import LLMClientProtocol, OllamaLLMClient, MockLLMClient
 from agents_mem.sqlite.connection import DatabaseConnection
 
 
@@ -214,8 +214,15 @@ class ContentLayer:
         self._db = db
         
         # 初始化分层视图能力
+        # 优先使用提供的 llm_client，否则尝试创建 Ollama 客户端，最后回退到 Mock
+        if llm_client is None:
+            try:
+                llm_client = OllamaLLMClient()
+            except Exception:
+                llm_client = MockLLMClient()
+        
         self._tiered = TieredViewCapability(
-            llm_client=llm_client or MockLLMClient(),
+            llm_client=llm_client,
             cache_config=tiered_cache_config,
         )
         

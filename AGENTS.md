@@ -1,166 +1,217 @@
-# agents-mem-py — Agent 记忆系统 (Python版)
+# AGENTS.md — agents-mem-py
 
-**角色**: 面向 Agents 的4层渐进式记忆系统  
-**架构**: L0 Identity → L1 Index → L2 Content → L3 Knowledge  
-**维护**: 代码与文档同步 | 测试覆盖率 100%
+**Role**: Python developer for 4-layer agent memory system  
+**Stack**: Python 3.11+ / FastMCP / SQLite / OpenViking  
+**Constraint**: 100% test coverage | L0-L3 architecture
 
 ---
 
-## 快速开始
+## Agent Role
+
+You are an expert Python developer working on a **4-layer progressive memory system** for AI agents. Priorities:
+
+1. **Token efficiency**: L0 (~100 tokens) → L1 (~2000 tokens) → L2 (full)  
+2. **Scope isolation**: Every operation filtered by `user_id` (required) + `agent_id/team_id` (optional)  
+3. **Test coverage**: 100% required, pytest-asyncio for async code
+
+---
+
+## Quick Commands
 
 ```bash
-# 安装依赖
-pip install -e ".[dev]"
+# Development
+pip install -e ".[dev]"          # Install with dev dependencies
+python -m agents_mem              # Start MCP server
+agents-mem-py                     # CLI entry point
 
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 配置 OpenViking 和 Ollama
+# Testing
+pytest --cov=agents_mem --cov-fail-under=100  # Run tests with coverage
+pytest -xvs tests/test_content/    # Run specific test module
 
-# 运行测试
-pytest --cov=agents_mem --cov-report=html
-
-# 启动 MCP 服务器
-python -m agents_mem
-# 或
-agents-mem-py
+# Quality
+pyright src/agents_mem             # Type check (strict mode)
+ruff check src/agents_mem          # Lint check
 ```
 
-**依赖服务**: 
-- OpenViking (`localhost:1933`) - 向量搜索
-- Ollama (`localhost:11434`) - Embedding (bge-m3)
-
-**存储**: `~/.agents_mem/` (SQLite)
-
 ---
 
-## 项目概览
-
-4层渐进式记忆系统，面向 169+ Agents。Python 3.11+ / FastMCP / SQLite / OpenViking。
-
-**核心目标**: Token 成本节省 80-91% (通过 L0/L1/L2 分层加载)
-
-详见 → [`docs/agents-mem-py-DESIGN-v2.md`](docs/agents-mem-py-DESIGN-v2.md) — 完整架构决策
-
----
-
-## 4层架构
+## Architecture (L0-L3)
 
 ```
 ┌────────────────────────────────────────────────────────┐
 │  L3: Knowledge Layer                                   │
-│  ├─ Facts (事实提取与验证)                              │
-│  ├─ Entity Tree (实体聚合与关联)                        │
-│  └─ Trace (事实追溯链)                                  │
+│  ├─ Facts (fact extraction & validation)              │
+│  ├─ Entities (entity aggregation & linking)           │
+│  └─ Trace (knowledge provenance chains)               │
 ├────────────────────────────────────────────────────────┤
-│  L2: Content Layer ⭐ (核心价值)                       │
-│  ├─ Documents/Assets (原始内容存储)                     │
-│  ├─ Tiered Views (L0/L1/L2 分层视图 - 内置能力)        │
-│  └─ Conversations/Messages (会话内容)                   │
+│  L2: Content Layer ⭐ Core Value                        │
+│  ├─ Documents/Assets (raw content storage)            │
+│  ├─ Tiered Views (L0/L1/L2 built-in capability)       │
+│  └─ Conversations/Messages (conversation content)     │
 ├────────────────────────────────────────────────────────┤
 │  L1: Index Layer                                       │
-│  ├─ URI System (mem:// 寻址)                            │
-│  ├─ Metadata Index (元数据索引)                         │
-│  └─ Vector Search (语义搜索 - 内置能力)                 │
+│  ├─ URI System (mem:// addressing)                    │
+│  ├─ Metadata Index (metadata search)                  │
+│  └─ Vector Search (semantic search - built-in)        │
 ├────────────────────────────────────────────────────────┤
 │  L0: Identity Layer                                    │
-│  ├─ Scope (user_id/agent_id/teamId)                     │
-│  └─ Access Control (权限控制)                           │
+│  ├─ Scope (user_id/agent_id/team_id)                  │
+│  └─ Access Control (permission validation)            │
 └────────────────────────────────────────────────────────┘
 ```
 
-**单向依赖**: L3 → L2 → L1 → L0 (内层不依赖外层)
+**Dependency rule**: L3 → L2 → L1 → L0 (inner layers don't depend on outer)
 
 ---
 
-## 目录地图
+## Directory Map
 
 ```
-agents-mem-py/
-├── src/agents_mem/
-│   ├── core/           # 核心类型、URI、常量、异常
-│   ├── identity/       # L0: 身份层
-│   ├── index/          # L1: 索引层 + VectorSearchCapability
-│   ├── content/        # L2: 内容层 + TieredViewCapability
-│   ├── knowledge/      # L3: 知识层
-│   ├── export/         # Markdown导出 + Jinja2模板
-│   ├── sqlite/         # 数据库连接、迁移、13张表
-│   ├── openviking/     # OpenViking HTTP客户端
-│   ├── llm/            # LLM客户端 + 提示词
-│   ├── tools/          # MCP工具处理器
-│   ├── mcp_server.py   # FastMCP服务器
-│   └── __main__.py     # 入口点
-│
-└── tests/              # 测试套件 (100%覆盖)
-    ├── test_core/
-    ├── test_identity/
-    ├── test_index/
-    ├── test_content/
-    ├── test_knowledge/
-    ├── test_export/
-    └── test_tools/
+src/agents_mem/
+├── core/              # Pydantic models, URI system, constants, exceptions
+├── identity/          # L0: Scope validation, access control
+├── index/             # L1: Metadata index, vector search capability
+├── content/           # L2: Document storage, tiered view capability
+├── knowledge/         # L3: Fact extraction, entity tree, trace
+├── export/            # Markdown export with Jinja2 templates
+├── sqlite/            # Database connection, migrations, 13 tables
+├── openviking/        # OpenViking HTTP client
+├── llm/               # LLM client integration
+├── tools/             # MCP tool handlers (create/read/update/delete/export)
+├── mcp_server.py      # FastMCP server entry
+└── __main__.py        # CLI entry point
+
+tests/                 # Test suite (100% coverage target)
+├── test_core/         # Core type tests
+├── test_identity/     # L0 tests
+├── test_index/        # L1 tests
+├── test_content/      # L2 tests
+├── test_knowledge/    # L3 tests
+├── test_export/       # Export tests
+└── test_tools/        # MCP tool tests
 ```
 
 ---
 
-## 关键约束
+## Critical Constraints
 
-- **Scope 必需**: `user_id` 必填 | `agent_id/team_id` 可选
-- **SQLite 蛇形**: `user_id`, `created_at`
-- **Unix 秒**: 时间戳使用整数秒
-- **Token 预算**: L0≈100, L1≈2000
-- **重试**: maxRetries=3, retryDelay=100ms
-- **测试**: 100% 覆盖 | pytest-asyncio
-
----
-
-## MCP 工具
-
-| 工具 | 功能 | 资源类型 |
-|------|------|----------|
-| `mem_create` | 创建资源 | document, asset, conversation, message, fact, team |
-| `mem_read` | 读取/搜索/列表/分层 | 同上 |
-| `mem_update` | 更新 (验证 scope) | 同上 |
-| `mem_delete` | 删除 (级联) | 同上 |
-| `mem_export` | 导出 Markdown | L2-Content / L3-Knowledge |
-
-**搜索模式**: `hybrid` (中文语义) | `fts` | `semantic` | `progressive`
-
-**分层视图**: `tier=L0` (~100 tokens) | `tier=L1` (~2000 tokens) | `tier=L2` (完整)
-
-详见 → [`docs/agents-mem-py-QUICKSTART-v2.md`](docs/agents-mem-py-QUICKSTART-v2.md)
+| Constraint | Value | Notes |
+|------------|-------|-------|
+| **Scope** | `user_id` required, others optional | All queries auto-filtered |
+| **Naming** | snake_case for SQLite/JSON fields | `user_id`, `created_at` |
+| **Timestamp** | Unix seconds (int) | Not milliseconds |
+| **Token budget** | L0≈100, L1≈2000 | Hard limits for tiered views |
+| **Retry** | maxRetries=3, retryDelay=100ms | Exponential backoff |
+| **Coverage** | 100% | pytest-cov fail-under=100 |
 
 ---
 
-## 质量门禁
+## MCP Tools
 
-- 类型检查: `pyright src/agents_mem`
-- 代码风格: `ruff check src/agents_mem`
-- 测试: `pytest --cov=agents_mem --cov-fail-under=100`
-- 覆盖率: 100%
+| Tool | Action | Resource Types |
+|------|--------|----------------|
+| `mem_create` | Create resource | document, asset, conversation, message, fact, team |
+| `mem_read` | Read/Search/List/Tiered view | Same as above |
+| `mem_update` | Update (scope validated) | Same as above |
+| `mem_delete` | Delete (cascade) | Same as above |
+| `mem_export` | Export Markdown | content, knowledge |
+
+**Search modes**: `hybrid` (default, Chinese-friendly) | `fts` | `semantic` | `progressive`  
+**Tiers**: `tier=L0` (~100t) | `tier=L1` (~2000t) | `tier=L2` (full)
+
+See → `docs/agents-mem-py-QUICKSTART-v2.md` for detailed API
 
 ---
 
-## 知识库
+## What to Read Before Modifying
+
+| If you're working on... | Read first |
+|-------------------------|------------|
+| L0 Identity | `src/agents_mem/identity/layer.py` |
+| L1 Index | `src/agents_mem/index/layer.py` + `capabilities/vector_search.py` |
+| L2 Content | `src/agents_mem/content/layer.py` + `capabilities/tiered.py` |
+| L3 Knowledge | `src/agents_mem/knowledge/layer.py` |
+| MCP Tools | `src/agents_mem/tools/handlers/` + `mcp_server.py` |
+| Database | `src/agents_mem/sqlite/schema.py` (13 tables) |
+| URI System | `src/agents_mem/core/uri.py` |
+
+---
+
+## Code Style
+
+```python
+# Naming
+snake_case_for_functions_and_variables
+PascalCaseForClassesAndModels
+UPPER_SNAKE_CASE_FOR_CONSTANTS
+
+# Type hints (required)
+from typing import Optional
+
+def search(
+    scope: Scope,
+    query: str,
+    limit: int = 10
+) -> list[SearchResult]:
+    ...
+
+# Pydantic models
+from pydantic import BaseModel, Field
+
+class Document(BaseModel):
+    id: str
+    user_id: str = Field(..., description="Required scope field")
+    content: str
+    created_at: int  # Unix seconds
+
+# Error handling
+class MemoryError(Exception):
+    """Base exception for memory operations."""
+    pass
+
+# Never suppress type errors with `Any` unless absolutely necessary
+```
+
+---
+
+## Documentation Map
 
 ```
 docs/
-├── agents-mem-py-DESIGN-v2.md      # 架构设计 (4层)
-├── agents-mem-py-EXPORT-v2.md      # Markdown导出设计
-├── agents-mem-py-QUICKSTART-v2.md  # 快速开始指南
-└── AGENTS.md                       # 本文件
+├── agents-mem-py-DESIGN-v2.md      # Architecture design (read this first)
+├── agents-mem-py-EXPORT-v2.md      # Export system design
+├── agents-mem-py-QUICKSTART-v2.md  # API usage guide
+├── QUALITY_SCORE.md                # Quality metrics
+├── RELIABILITY.md                  # Reliability guidelines
+├── SECURITY.md                     # Security specifications
+├── GOLDEN_RULES.md                 # Engineering principles
+├── FRONTEND.md                     # MCP interface spec
+└── design-docs/index.md            # Design doc registry
 ```
 
 ---
 
-## 故障排查
+## Troubleshooting
 
-| 问题 | 解决 |
-|------|------|
-| OpenViking 连接失败 | 启动服务 (`localhost:1933`), 验证 API key |
-| 搜索返回空 | 等待异步处理, 检查 Ollama, 验证 scope 匹配 |
-| 中文搜索失败 | 使用 `search_mode: 'hybrid'` |
-| URI 路径不一致 | 存储/搜索统一使用 `URISystem.build_target_uri()` |
+| Issue | Solution |
+|-------|----------|
+| OpenViking connection fail | Start service on `localhost:1933`, verify `OPENVIKING_API_KEY` |
+| Search returns empty | Wait for async processing, check Ollama on `localhost:11434`, verify scope match |
+| Chinese search no results | Use `search_mode: 'hybrid'` |
+| URI path mismatch | Always use `URISystem.build_target_uri()` for consistency |
+| Type check fails | Run `pyright src/agents_mem`, fix all strict errors |
+| Test coverage < 100% | Add tests for uncovered lines, check `htmlcov/index.html` |
 
 ---
 
-**文档结束**
+## External Services
+
+| Service | Address | Purpose | Check |
+|---------|---------|---------|-------|
+| OpenViking | `localhost:1933` | Vector search | `curl http://localhost:1933/health` |
+| Ollama | `localhost:11434` | Embedding (bge-m3) | `curl http://localhost:11434/api/tags` |
+| SQLite | `~/.agents_mem/` | Primary storage | Auto-created on first run |
+
+---
+
+**End of Document** — For detailed architecture, see `docs/agents-mem-py-DESIGN-v2.md`

@@ -55,15 +55,15 @@ class ContentLayerProtocol:
 
     async def get(self, content_uri: str) -> Any:
         """根据 URI 获取内容"""
-        raise NotImplementedError
+        ...
 
     async def get_by_id(self, content_id: str) -> Any:
         """根据 ID 获取内容"""
-        raise NotImplementedError
+        ...
 
     async def get_tiered(self, content_id: str, tier: str) -> Any:
         """获取分层内容 (L0/L1/L2)"""
-        raise NotImplementedError
+        ...
 
 
 # ============================================================================

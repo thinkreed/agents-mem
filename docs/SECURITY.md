@@ -10,19 +10,20 @@
 
 所有数据通过 Scope 隔离:
 
-```typescript
-interface Scope {
-  userId: string      // 必填 — 用户隔离
-  agentId?: string    // 可选 — Agent 隔离
-  teamId?: string     // 可选 — 团队隔离
-}
+```python
+from pydantic import BaseModel
+
+class Scope(BaseModel):
+    user_id: str      # 必填 — 用户隔离
+    agent_id: str | None = None    # 可选 — Agent 隔离
+    team_id: str | None = None     # 可选 — 团队隔离
 ```
 
 ### 规则
 
 | 规则 | 描述 |
 |------|------|
-| userId 必填 | 所有操作必须提供 userId |
+| user_id 必填 | 所有操作必须提供 user_id |
 | Scope 验证 | 每次查询自动附加 scope 过滤 |
 | 跨 Scope 禁止 | 不允许访问其他用户/agent 数据 |
 
@@ -39,20 +40,20 @@ WHERE user_id = ?
 
 ## 二、输入验证
 
-### Zod Schema 验证
+### Pydantic Schema 验证
 
-所有外部输入必须通过 Zod schema 验证:
+所有外部输入必须通过 Pydantic model 验证:
 
-```typescript
-import { z } from 'zod'
+```python
+from pydantic import BaseModel, Field
+from typing import Optional
 
-const CreateDocumentSchema = z.object({
-  userId: z.string().min(1),
-  agentId: z.string().optional(),
-  teamId: z.string().optional(),
-  content: z.string().min(1),
-  metadata: z.record(z.unknown()).optional(),
-})
+class CreateDocumentRequest(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    agent_id: Optional[str] = None
+    team_id: Optional[str] = None
+    content: str = Field(..., min_length=1)
+    metadata: Optional[dict] = None
 ```
 
 ### 验证点
@@ -78,12 +79,12 @@ const CreateDocumentSchema = z.object({
 
 **不泄露内部细节**:
 
-```typescript
-// ✅ 安全
-throw new Error('userId is required for document. Provide scope: { userId: "..." }')
+```python
+# 安全
+raise ValueError("user_id is required for document. Provide scope: { 'user_id': '...' }")
 
-// ❌ 不安全 — 泄露 SQL 细节
-throw new Error(`SQL failed: SELECT * FROM documents WHERE user_id='${userId}'`)
+# 不安全 — 泄露 SQL 细节
+raise ValueError(f"SQL failed: SELECT * FROM documents WHERE user_id='{user_id}'")
 ```
 
 ### 错误分类
@@ -124,22 +125,21 @@ throw new Error(`SQL failed: SELECT * FROM documents WHERE user_id='${userId}'`)
 
 ```bash
 # 定期检查依赖漏洞
-npm audit
-bun audit
+pip audit
 ```
 
 ### 锁定文件
 
-- ✅ 提交 `bun.lock` 到 Git
-- ✅ 使用固定版本，不接受范围
+- 提交 `uv.lock` 或 `poetry.lock` 到 Git
+- 使用固定版本，不接受范围
 
 ### 最小依赖
 
 | 依赖 | 用途 |
 |------|------|
-| `@modelcontextprotocol/sdk` | MCP 协议 |
-| `zod` | Schema 验证 |
-| `better-sqlite3` | SQLite (同步) |
+| `mcp` | MCP 协议 |
+| `pydantic` | Schema 验证 |
+| `aiosqlite` | SQLite (异步) |
 
 ---
 
@@ -174,7 +174,7 @@ chmod 600 ~/.agents_mem/agents_mem.db
 
 ### 代码审查
 
-- [ ] 所有外部输入通过 Zod 验证
+- [ ] 所有外部输入通过 Pydantic 验证
 - [ ] 无 SQL 注入风险 (使用参数化查询)
 - [ ] 错误消息不泄露内部细节
 - [ ] 无硬编码密钥或 Token
@@ -189,6 +189,6 @@ chmod 600 ~/.agents_mem/agents_mem.db
 
 ### 定期
 
-- [ ] 每月运行 `npm audit`
+- [ ] 每月运行 `pip audit`
 - [ ] 每季度审查依赖是否需要
 - [ ] 每半年评估安全策略

@@ -1,40 +1,40 @@
-# 设计文档索引
+# Design Documents Index
 
-**维护**: 所有设计文档必须在此索引中注册 | 过时文档标记为 `deprecated`
-
----
-
-## 核心设计
-
-| 文档 | 状态 | 最后更新 | 描述 |
-|------|------|----------|------|
-| [`../DESIGN.md`](../DESIGN.md) | ✅ active | 2026-04-14 | 完整架构设计与决策 |
-| [`../ARCHITECTURE.md`](../ARCHITECTURE.md) | ✅ active | 2026-04-14 | 域分层与依赖边界 |
-| [`core-beliefs.md`](core-beliefs.md) | ✅ active | 2026-04-14 | 智能体优先核心理念 |
-
-## 产品领域
-
-| 文档 | 状态 | 最后更新 | 描述 |
-|------|------|----------|------|
-| *(待添加)* | | | |
-
-## 技术设计
-
-| 文档 | 状态 | 最后更新 | 描述 |
-|------|------|----------|------|
-| *(待添加)* | | | |
+**Maintenance**: All design docs must be registered here | Mark outdated docs as `deprecated`
 
 ---
 
-## 验证状态
+## Core Design
 
-- **active**: 反映当前代码行为
-- **deprecated**: 已过时，待删除或更新
-- **draft**: 草稿，尚未实施
+| Document | Status | Last Updated | Description |
+|----------|--------|--------------|-------------|
+| [`../agents-mem-py-DESIGN-v2.md`](../agents-mem-py-DESIGN-v2.md) | ✅ active | 2026-04-14 | 4-layer architecture design (L0-L3) |
+| [`../agents-mem-py-EXPORT-v2.md`](../agents-mem-py-EXPORT-v2.md) | ✅ active | 2026-04-14 | Markdown export design |
+| [`../agents-mem-py-QUICKSTART-v2.md`](../agents-mem-py-QUICKSTART-v2.md) | ✅ active | 2026-04-14 | Quick start guide |
+| [`core-beliefs.md`](core-beliefs.md) | ✅ active | 2026-04-14 | Agent-first core principles |
 
-## 添加新文档
+## Technical Guidelines
 
-1. 在此索引中注册
-2. 设置状态为 `draft` → `active`
-3. 确保与代码交叉链接
-4. 运行 `bun test` 验证
+| Document | Status | Last Updated | Description |
+|----------|--------|--------------|-------------|
+| [`../QUALITY_SCORE.md`](../QUALITY_SCORE.md) | ✅ active | 2026-04-14 | Quality scoring system |
+| [`../RELIABILITY.md`](../RELIABILITY.md) | ✅ active | 2026-04-14 | Reliability guidelines |
+| [`../SECURITY.md`](../SECURITY.md) | ✅ active | 2026-04-14 | Security specifications |
+| [`../GOLDEN_RULES.md`](../GOLDEN_RULES.md) | ✅ active | 2026-04-14 | Golden principles |
+| [`../FRONTEND.md`](../FRONTEND.md) | ✅ active | 2026-04-14 | MCP interface design |
+| [`../SPEC.md`](../SPEC.md) | ✅ active | 2026-04-14 | Development specifications |
+
+---
+
+## Status Legend
+
+- **active**: Reflects current codebase behavior
+- **deprecated**: Outdated, pending deletion or update
+- **draft**: Draft, not yet implemented
+
+## Adding New Documents
+
+1. Register in this index
+2. Set status to `draft` → `active`
+3. Ensure cross-links to code
+4. Run `pytest` to validate

@@ -85,22 +85,22 @@ curl -s http://localhost:1933/health && echo "✅ OpenViking OK" || echo "❌ Op
 
 ### 重试策略
 
-```typescript
-// 指数退避
-const delay = retryDelay * Math.pow(2, retryCount)
+```python
+# 指数退避
+delay = retry_delay * (2 ** retry_count)
 ```
 
 ### 何时重试
 
-- ✅ 网络超时
-- ✅ 5xx 服务器错误
-- ✅ 服务暂时不可用
+- 网络超时
+- 5xx 服务器错误
+- 服务暂时不可用
 
 ### 何时不重试
 
-- ❌ 4xx 客户端错误 (验证失败、权限不足)
-- ❌ 业务逻辑错误
-- ❌ 数据格式错误
+- 4xx 客户端错误 (验证失败、权限不足)
+- 业务逻辑错误
+- 数据格式错误
 
 ---
 
@@ -108,14 +108,14 @@ const delay = retryDelay * Math.pow(2, retryCount)
 
 ### 结构化日志
 
-```typescript
-// 所有日志使用结构化格式
+```python
+# 所有日志使用结构化格式
 {
-  level: 'info' | 'warn' | 'error',
-  timestamp: number,       // Unix 秒
-  module: string,          // 模块名
-  message: string,         // 人类可读
-  data?: object            // 机器可读上下文
+    "level": "info" | "warn" | "error",
+    "timestamp": 1234567890,       # Unix 秒
+    "module": "openviking",        # 模块名
+    "message": "...",              # 人类可读
+    "data": {...}                  # 机器可读上下文
 }
 ```
 
@@ -181,9 +181,17 @@ const delay = retryDelay * Math.pow(2, retryCount)
 
 ### 信号处理
 
-```typescript
-process.on('SIGINT', gracefulShutdown)
-process.on('SIGTERM', gracefulShutdown)
+```python
+import signal
+
+def graceful_shutdown(signum, frame):
+    # 停止接收新请求
+    # 等待当前请求完成
+    # 关闭数据库连接
+    pass
+
+signal.signal(signal.SIGINT, graceful_shutdown)
+signal.signal(signal.SIGTERM, graceful_shutdown)
 ```
 
 ---

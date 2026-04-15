@@ -48,11 +48,11 @@ mem://{userId}/{agentId?}/{teamId?}/{type}/{id}
 
 ### Scope
 
-```typescript
+```python
 {
-  userId: string      // 必填
-  agentId?: string    // 可选
-  teamId?: string     // 可选
+    "user_id": str,      # 必填
+    "agent_id": str | None,    # 可选
+    "team_id": str | None,     # 可选
 }
 ```
 
@@ -100,7 +100,7 @@ mem://{userId}/{agentId?}/{teamId?}/{type}/{id}
 
 | 错误 | 消息 |
 |------|------|
-| userId 缺失 | `"userId is required for {resource}"` |
+| user_id 缺失 | `"user_id is required for {resource}"` |
 | query 缺失 | `"query is required for mem_read"` |
 | 无效查询 | `"Invalid query for {resource}. Valid keys: {keys}"` |
 
@@ -110,16 +110,16 @@ mem://{userId}/{agentId?}/{teamId?}/{type}/{id}
 
 ### 添加新工具
 
-1. 在 `src/tools/` 创建处理器
-2. 定义 Zod schema 验证
-3. 在 `mcp_server.ts` 注册工具
+1. 在 `src/agents_mem/tools/handlers/` 创建处理器
+2. 定义 Pydantic model 验证
+3. 在 `mcp_server.py` 注册工具
 4. 编写测试
 5. 更新本文档
 
 ### 添加新资源类型
 
-1. 更新 `EntityType` 联合类型 (`src/core/types.ts`)
-2. 创建 SQLite 表 (`src/sqlite/`)
+1. 更新 `EntityType` Enum (`src/agents_mem/core/types.py`)
+2. 更新 SQLite 表 (`src/agents_mem/sqlite/schema.py`)
 3. 添加 CRUD 处理器
 4. 更新工具分发器
 5. 编写测试
@@ -131,8 +131,8 @@ mem://{userId}/{agentId?}/{teamId?}/{type}/{id}
 
 | 类型 | 约定 | 示例 |
 |------|------|------|
-| 变量/函数 | camelCase | `handleMemCreate` |
-| 类型/接口 | PascalCase | `MaterialURI` |
+| 变量/函数 | snake_case | `handle_mem_create` |
+| 类/模型 | PascalCase | `MaterialURI`, `Document` |
 | 常量 | UPPER_SNAKE_CASE | `MAX_RETRIES` |
-| 文件 | snake_case | `crud_handlers.ts` |
+| 模块/包 | snake_case | `crud_handlers.py` |
 | SQLite 字段 | snake_case | `user_id`, `created_at` |

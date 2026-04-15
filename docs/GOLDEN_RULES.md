@@ -12,19 +12,18 @@
 **原则**: 使用共享工具包，而非手工编写的辅助函数  
 **原因**: 将不变式集中管理，智能体更容易理解和复用
 
-```typescript
-// ✅ 好 — 使用共享工具
-import { mapWithConcurrency } from '@/utils/async'
-await mapWithConcurrency(items, process, { limit: 5 })
+```python
+# 好 — 使用共享工具
+from agents_mem.utils.async_utils import map_with_concurrency
+await map_with_concurrency(items, process, limit=5)
 
-// ❌ 差 — 手写辅助
-async function processItems(items: Item[]) {
-  const results = []
-  for (let i = 0; i < items.length; i += 5) {
-    results.push(...await Promise.all(items.slice(i, i+5).map(process)))
-  }
-  return results
-}
+# 差 — 手写辅助
+async def process_items(items: list) -> list:
+    results = []
+    for i in range(0, len(items), 5):
+        batch = items[i:i+5]
+        results.extend(await asyncio.gather(*[process(item) for item in batch]))
+    return results
 ```
 
 ### 2. 验证边界，不探测数据
@@ -32,14 +31,19 @@ async function processItems(items: Item[]) {
 **原则**: 在边界处验证数据形状，不基于猜测构建  
 **原因**: 智能体不会意外地基于未验证结构进行构建
 
-```typescript
-// ✅ 好 — 边界验证
-const parsed = CreateSchema.parse(input)  // Zod 在入口验证
+```python
+# 好 — 边界验证
+from pydantic import BaseModel
 
-// ❌ 差 — 探测数据
-if (input.name && input.email) {  // 不完整验证
-  // 使用 input
-}
+class CreateRequest(BaseModel):
+    name: str
+    email: str
+
+parsed = CreateRequest.model_validate(input)  # Pydantic 在入口验证
+
+# 差 — 探测数据
+if input.get("name") and input.get("email"):  # 不完整验证
+    # 使用 input
 ```
 
 ### 3. 结构化日志，不打印字符串
@@ -47,12 +51,14 @@ if (input.name && input.email) {  // 不完整验证
 **原则**: 所有日志使用结构化格式  
 **原因**: 智能体可以查询、过滤、关联
 
-```typescript
-// ✅ 好 — 结构化
-logger.warn({ module: 'openviking', retry: 2, max: 3, error: e.message })
+```python
+# 好 — 结构化
+import logging
+logger = logging.getLogger(__name__)
+logger.warning("Retry", extra={"module": "openviking", "retry": 2, "max": 3, "error": str(e)})
 
-// ❌ 差 — 字符串
-console.log(`OpenViking retry 2/3: ${e.message}`)
+# 差 — 字符串
+print(f"OpenViking retry 2/3: {e}")
 ```
 
 ### 4. 类型安全，避免 any
@@ -60,12 +66,17 @@ console.log(`OpenViking retry 2/3: ${e.message}`)
 **原则**: 100% TypeScript strict，不使用 any  
 **原因**: 类型是智能体最重要的导航线索
 
-```typescript
-// ✅ 好
-interface SearchResult { id: string; score: number }
+```python
+# 好
+from pydantic import BaseModel
 
-// ❌ 差
-function search(query: any): any
+class SearchResult(BaseModel):
+    id: str
+    score: float
+
+# 差
+def search(query: Any) -> Any:
+    ...
 ```
 
 ---
@@ -77,7 +88,7 @@ function search(query: any): any
 **原则**: 代码只能依赖分层架构中前面的层  
 **原因**: 防止循环依赖，确保可测试性
 
-详见 → [`ARCHITECTURE.md`](ARCHITECTURE.md) § 分层领域架构
+详见 → [`agents-mem-py-DESIGN-v2.md`](docs/agents-mem-py-DESIGN-v2.md) 4层架构设计
 
 ### 6. 文件不超过 500 行
 
@@ -99,10 +110,10 @@ function search(query: any): any
 **原因**: 无法验证的文档必然过时
 
 ```markdown
-<!-- ✅ 可验证 -->
-- API 端点: `/api/v1/search/find` (见 `src/openviking/http_client.ts:42`)
+<!-- 可验证 -->
+- API 端点: `POST /search` (见 `src/openviking/client.py:42`)
 
-<!-- ❌ 不可验证 -->
+<!-- 不可验证 -->
 - API 端点支持多种搜索模式
 ```
 
@@ -166,9 +177,9 @@ function search(query: any): any
 
 | 原则 | 执行方式 |
 |------|----------|
-| 1-4 | Code review + Linter |
-| 5-7 | `bun run lint:deps` + Linter |
-| 8-10 | `bun run lint:docs` + doc-gardener |
-| 11-12 | `bun test` + 覆盖率检查 |
+| 1-4 | Code review + Ruff |
+| 5-7 | `pyright` + Ruff |
+| 8-10 | Manual doc review |
+| 11-12 | `pytest` + 覆盖率检查 |
 | 13-14 | CI 门禁 |
 | 15-16 | 每周审查 + doc-gardener |
