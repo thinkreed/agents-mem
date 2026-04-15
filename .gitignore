@@ -1,28 +1,50 @@
-# Dependencies
-node_modules/
-
-# Build output
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
 dist/
-*.tsbuildinfo
+build/
+*.whl
+*.egg-info
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+.conda/
+
+# Dependencies
+.pip/
 
 # Testing
+.pytest_cache/
+.coverage
 coverage/
+htmlcov/
+*.cover
+.hypothesis/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
 
 # Environment
 .env
 .env.local
 .env.*.local
-
-# IDE
-.idea/
-.qwen/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Project-specific (local data storage)
 .agents_mem/
@@ -32,13 +54,44 @@ Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
 
 # Temp
 tmp/
 temp/
 *.tmp
+*.bak
+
+# Distribution / packaging
+.Python
+develop-eggs/
+downloads/
+*.manifest
+*.spec
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Sphinx documentation
+docs/_build/
+
+# UV
+.uv/
 
 .sisyphus
-.pip
