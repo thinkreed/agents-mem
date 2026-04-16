@@ -220,7 +220,7 @@ class AssetRepository:
             storage_path = f"assets/{scope.user_id}/{asset_id}/{input.filename}"
 
         # 处理 metadata
-        metadata = input.metadata or {}
+        metadata = json.dumps(input.metadata) if input.metadata else "{}"
 
         # 插入数据库
         await self._db.run(
@@ -397,7 +397,7 @@ class AssetRepository:
         if input.description is not None:
             updates["description"] = input.description
         if input.metadata is not None:
-            updates["metadata"] = input.metadata
+            updates["metadata"] = json.dumps(input.metadata)
 
         # 构建 SQL
         set_clause = ", ".join(f"{k} = ?" for k in updates.keys())

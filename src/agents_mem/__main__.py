@@ -10,21 +10,32 @@ agents-mem-py MCP 服务器入口
 """
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any
+
+# 加载 .env 环境变量
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent.parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+except ImportError:
+    pass
 
 
 def main() -> None:
     """启动 MCP 服务器"""
     from agents_mem.tools import create_mcp_server
     from agents_mem.sqlite.connection import get_connection
-    
+
     # 初始化数据库连接
     async def init_db() -> Any:
         return await get_connection()
-    
+
     # 运行初始化
     asyncio.run(init_db())
-    
+
     # 创建并运行 MCP 服务器
     mcp = create_mcp_server("agents-mem-py")
     mcp.run()

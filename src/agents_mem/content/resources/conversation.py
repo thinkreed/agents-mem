@@ -9,6 +9,8 @@ Conversation Repository - 对话资源仓库
 - 消息管理 (添加/删除/查询)
 """
 
+from __future__ import annotations
+
 import time
 import uuid
 from typing import Any, Protocol

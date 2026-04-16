@@ -37,17 +37,17 @@ class OllamaEmbedder:
     def __init__(
         self,
         base_url: str | None = None,
-        model: str = "bge-m3",
+        model: str | None = None,
     ):
         """
         初始化 Ollama Embedder
-        
+
         Args:
             base_url: Ollama 服务地址，默认从 OLLAMA_HOST 环境变量
-            model: 嵌入模型名称，默认 bge-m3
+            model: 嵌入模型名称，默认从 OLLAMA_EMBEDDING_MODEL 环境变量， fallback 到 bge-m3
         """
         self._base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self._model = model
+        self._model = model or os.getenv("OLLAMA_EMBEDDING_MODEL", "bge-m3")
         self._client = httpx.AsyncClient(base_url=self._base_url, timeout=30.0)
         self._embedding_dim = 1024  # bge-m3 输出维度
     

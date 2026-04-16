@@ -9,6 +9,7 @@ Document Repository - 文档资源仓库
 - 搜索文档 (FTS, 语义, 混合)
 """
 
+import json
 import time
 import uuid
 from typing import Any, Protocol
@@ -221,7 +222,7 @@ class DocumentRepository:
                 input.source_path,
                 input.title,
                 input.content,
-                input.metadata,
+                json.dumps(input.metadata) if input.metadata else "{}",
                 content_length,
                 now,
                 now,
@@ -370,7 +371,7 @@ class DocumentRepository:
         if input.doc_type is not None:
             updates["doc_type"] = input.doc_type
         if input.metadata is not None:
-            updates["metadata"] = input.metadata
+            updates["metadata"] = json.dumps(input.metadata)
         
         # 构建 SQL
         set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
@@ -500,6 +501,18 @@ class DocumentRepository:
     
     def _row_to_document(self, row: dict[str, Any]) -> Document:
         """将数据库行转换为 Document 对象"""
+        # 处理 metadata (可能是 JSON 字符串或 dict)
+        raw_metadata = row.get("metadata", {})
+        metadata_dict: dict[str, Any]
+        if isinstance(raw_metadata, str):
+            try:
+                parsed = json.loads(raw_metadata)
+                metadata_dict = parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                metadata_dict = {}
+        else:
+            metadata_dict = raw_metadata if isinstance(raw_metadata, dict) else {}
+        
         return Document(
             id=row["id"],
             user_id=row["user_id"],
@@ -511,7 +524,7 @@ class DocumentRepository:
             content=row["content"],
             source_url=row.get("source_url"),
             source_path=row.get("source_path"),
-            metadata=row.get("metadata", {}),
+            metadata=metadata_dict,
             content_length=row.get("content_length"),
             token_count=row.get("token_count"),
             openviking_uri=row.get("openviking_uri"),

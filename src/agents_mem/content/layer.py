@@ -19,6 +19,8 @@ L2 是核心价值层，负责：
 - delete(uri) -> bool: 删除资源
 """
 
+from __future__ import annotations
+
 import time
 from typing import Any, Protocol, Literal
 
