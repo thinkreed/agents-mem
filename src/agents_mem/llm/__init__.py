@@ -218,7 +218,7 @@ class MockLLMClient:
 
 
 # 保持向后兼容的协议定义
-from typing import Protocol
+from typing import Any, AsyncGenerator, Coroutine
 
 
 class LLMClientProtocol(Protocol):
@@ -228,6 +228,9 @@ class LLMClientProtocol(Protocol):
     实现类：
     - OllamaLLMClient: 生产环境，调用 Ollama 服务
     - MockLLMClient: 测试环境，本地模拟
+    
+    Note: generate_stream 返回 AsyncGenerator，Protocol 使用 Coroutine 包装
+    以兼容 pyright 类型检查。
     """
     
     async def generate(
@@ -239,7 +242,9 @@ class LLMClientProtocol(Protocol):
     ) -> str:
         ...
     
-    async def generate_stream(
+    # pyright 要求 Protocol 的 async 方法返回 Coroutine
+    # 但实际实现返回 AsyncGenerator，使用类型包装解决
+    def generate_stream(
         self,
         prompt: str,
         max_tokens: int | None = None,

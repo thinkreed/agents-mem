@@ -9,13 +9,12 @@ L0 Identity Layer 主模块
 """
 
 import hashlib
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
 from agents_mem.core.types import Scope
 from agents_mem.core.exceptions import ScopeError
-from agents_mem.identity.auth import AccessControl, Permission, PermissionDeniedError
+from agents_mem.identity.auth import AccessControl, PermissionDeniedError
 
 
 class IdentityLayer:

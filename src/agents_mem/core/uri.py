@@ -8,7 +8,7 @@ Format: mem://{user_id}/{agent_id or "_"}/{team_id or "_"}/{resource_type}/{reso
 import re
 from typing import Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 
 class Scope(BaseModel):

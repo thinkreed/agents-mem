@@ -1,13 +1,12 @@
 """
 SQLite schema definitions for agents-mem-py
 
-Defines all table structures following the 6-layer progressive disclosure architecture:
-- L0: Scope & Identity (users, agents, teams, team_members)
-- L1: Index & Metadata (memory_index)
-- L2: Documents & Assets (documents, assets)
-- L3: Tiered Content (tiered_content)
-- L4: Conversations (conversations, messages)
-- L5: Facts & Entity Tree (facts, extraction_status, memory_access_log)
+Defines all table structures following the 4-layer Clean Architecture:
+- L0: Identity Layer (users, agents, teams, team_members)
+- L1: Index Layer (memory_index)
+- L2: Content Layer (documents, assets, tiered_content, conversations, messages)
+- L3: Knowledge Layer (facts, extraction_status)
+- Audit: (memory_access_log)
 
 Uses snake_case column names (user_id, created_at) and Unix seconds timestamps.
 """
