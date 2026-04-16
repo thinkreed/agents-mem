@@ -51,19 +51,173 @@ class ContentLayerProtocol:
     - get(content_uri): 获取内容
     - get_by_id(content_id): 根据 ID 获取内容
     - get_tiered(content_id, tier): 获取分层内容
+
+    Args:
+        content_layer: L2 ContentLayer 实例 (只读访问)
+        db: 数据库连接 (用于 fallback 查询)
     """
 
+    def __init__(self, content_layer: Any, db: Any = None):
+        """
+        初始化 Content Layer 协议包装器
+
+        Args:
+            content_layer: L2 ContentLayer 实例
+            db: 数据库连接 (可选，用于 fallback)
+        """
+        self._content_layer = content_layer
+        self._db = db
+
     async def get(self, content_uri: str) -> Any:
-        """根据 URI 获取内容"""
-        ...
+        """
+        根据 URI 获取内容
+
+        直接委托给 ContentLayer.get() 方法。
+
+        Args:
+            content_uri: 内容 URI (mem:// 格式)
+
+        Returns:
+            内容数据 (Content 对象或分层视图字符串)
+
+        Raises:
+            NotFoundError: 内容不存在
+        """
+        if hasattr(self._content_layer, "get"):
+            return await self._content_layer.get(content_uri)
+        
+        # Fallback: 直接查询数据库
+        if self._db:
+            from agents_mem.core.uri import URISystem
+            try:
+                parsed = URISystem.parse(content_uri)
+                resource_id = parsed.resource_id
+                row = await self._db.query_one(
+                    "SELECT * FROM documents WHERE id = ?",
+                    [resource_id],
+                )
+                return row
+            except Exception:
+                return None
+        
+        return None
 
     async def get_by_id(self, content_id: str) -> Any:
-        """根据 ID 获取内容"""
-        ...
+        """
+        根据 ID 获取内容
+
+        通过构建 URI 委托给 ContentLayer.get() 方法。
+
+        Args:
+            content_id: 内容 ID
+
+        Returns:
+            内容数据
+
+        Raises:
+            NotFoundError: 内容不存在
+        """
+        # 尝试使用 ContentLayer 的 get 方法 (通过构建 URI)
+        if hasattr(self._content_layer, "get"):
+            # 构建一个简单的 URI (需要知道 user_id)
+            # 如果 ContentLayer 有 get_by_id 方法，直接使用
+            if hasattr(self._content_layer, "get_by_id"):
+                return await self._content_layer.get_by_id(content_id)
+            
+            # 否则尝试通过 URI 获取 (需要 scope 信息)
+            # 使用通配符 scope 构建 URI (使用 uri.py 中定义的 Scope)
+            from agents_mem.core.uri import Scope as URIScope
+            scope = URIScope(user_id="_")
+            uri = URISystem.build(scope, "documents", content_id)
+            try:
+                return await self._content_layer.get(uri)
+            except Exception:
+                pass
+        
+        # Fallback: 直接查询数据库
+        if self._db:
+            row = await self._db.query_one(
+                "SELECT * FROM documents WHERE id = ?",
+                [content_id],
+            )
+            return row
+        
+        return None
 
     async def get_tiered(self, content_id: str, tier: str) -> Any:
-        """获取分层内容 (L0/L1/L2)"""
-        ...
+        """
+        获取分层内容 (L0/L1/L2)
+
+        先获取内容，然后通过 tiered capability 获取分层视图。
+
+        Args:
+            content_id: 内容 ID
+            tier: 层级 (L0, L1, L2)
+
+        Returns:
+            分层内容字符串或完整内容
+
+        Raises:
+            ValueError: 无效的层级
+        """
+        # 首先获取内容
+        content = await self.get_by_id(content_id)
+        
+        if content is None:
+            return None
+        
+        # 尝试使用 ContentLayer 的分层能力
+        if hasattr(self._content_layer, "tiered"):
+            # 如果 content 是 Content 对象，直接使用 tiered capability
+            from agents_mem.core.types import Content, TierLevel
+            if isinstance(content, Content):
+                tiered = self._content_layer.tiered
+                return await tiered.get_view(content, tier)
+            # 如果 content 是 dict，转换后使用
+            if isinstance(content, dict):
+                # 构建 Content 对象
+                from agents_mem.core.types import ContentType
+                content_obj = Content(
+                    id=content.get("id", content_id),
+                    uri=content.get("uri", ""),
+                    title=content.get("title", ""),
+                    body=content.get("content") or content.get("body", ""),
+                    content_type=ContentType.NOTE,
+                    user_id=content.get("user_id", ""),
+                    agent_id=content.get("agent_id"),
+                    team_id=content.get("team_id"),
+                )
+                tiered = self._content_layer.tiered
+                return await tiered.get_view(content_obj, tier)
+        
+        # 尝试使用 ContentLayer.get() 并传入 tier
+        if hasattr(self._content_layer, "get"):
+            from agents_mem.core.uri import URISystem, Scope as URIScope
+            scope = URIScope(user_id="_")
+            uri = URISystem.build(scope, "documents", content_id)
+            try:
+                return await self._content_layer.get(uri, tier=tier)
+            except Exception:
+                pass
+        
+        # Fallback: 对于 L2 返回原始内容，L0/L1 尝试查询 tiered_content 表
+        if self._db:
+            if tier == "L2":
+                row = await self._db.query_one(
+                    "SELECT content FROM documents WHERE id = ?",
+                    [content_id],
+                )
+                return row.get("content") if row else None
+            
+            if tier in ("L0", "L1"):
+                row = await self._db.query_one(
+                    "SELECT abstract, overview FROM tiered_content WHERE source_id = ?",
+                    [content_id],
+                )
+                if row:
+                    return row.get("abstract") if tier == "L0" else row.get("overview")
+        
+        return None
 
 
 # ============================================================================

@@ -80,7 +80,7 @@ def register_update_tool(mcp: FastMCP) -> None:
             if not id:
                 raise ValidationError(message="id is required")
             
-            valid_resources = ["document", "asset", "conversation", "fact", "team"]
+            valid_resources = ["document", "asset", "conversation", "message", "fact", "team"]
             if resource not in valid_resources:
                 raise ValidationError(message=f"Invalid resource: {resource}")
             
@@ -88,24 +88,69 @@ def register_update_tool(mcp: FastMCP) -> None:
             content_layer = ContentLayer(db=db)
             uri_scope = _to_uri_scope(parsed_scope)
             
-            if resource in ["document", "asset"]:
-                rt = "document" if resource == "asset" else resource
-                uri = URISystem.build(uri_scope, rt, id)
+            if resource == "document":
+                uri = URISystem.build(uri_scope, "document", id)
                 update_data: dict[str, Any] = {}
                 if "title" in data:
                     update_data["title"] = data["title"]
                 if "content" in data or "body" in data:
                     update_data["content"] = data.get("content") or data.get("body")
                 content = await content_layer.update(uri, update_data)
-                result = _content_to_dict(content)
-                if resource == "asset" and "uri" in result:
-                    result["uri"] = result["uri"].replace("/documents/", "/assets/")
-                return result
+                return _content_to_dict(content)
+            
+            elif resource == "asset":
+                uri = URISystem.build(uri_scope, "asset", id)
+                update_data: dict[str, Any] = {}
+                if "title" in data:
+                    update_data["title"] = data["title"]
+                if "content" in data or "body" in data:
+                    update_data["content"] = data.get("content") or data.get("body")
+                content = await content_layer.update(uri, update_data)
+                return _content_to_dict(content)
             
             elif resource == "conversation":
                 uri = URISystem.build(uri_scope, "conversation", id)
                 content = await content_layer.update(uri, {"title": data.get("title")})
                 return _content_to_dict(content)
+            
+            elif resource == "message":
+                # Update message content
+                if "content" not in data:
+                    return {"error": "Message update requires 'content' field", "updated": False}
+                
+                # Get the message first to find its conversation
+                msg_row = await db.query_one(
+                    "SELECT m.*, c.user_id, c.agent_id, c.team_id FROM messages m "
+                    "JOIN conversations c ON m.conversation_id = c.id WHERE m.id = ?",
+                    [id],
+                )
+                if not msg_row:
+                    return {"error": f"Message {id} not found", "updated": False}
+                
+                # Validate scope
+                if msg_row["user_id"] != parsed_scope.user_id:
+                    return {"error": "Message not in scope", "updated": False}
+                if parsed_scope.agent_id and msg_row["agent_id"] != parsed_scope.agent_id:
+                    return {"error": "Message not in scope", "updated": False}
+                if parsed_scope.team_id and msg_row.get("team_id") != parsed_scope.team_id:
+                    return {"error": "Message not in scope", "updated": False}
+                
+                # Update message content
+                now = int(time.time())
+                await db.run(
+                    "UPDATE messages SET content = ?, timestamp = ? WHERE id = ?",
+                    [data["content"], now, id],
+                )
+                
+                # Return updated message
+                return {
+                    "id": id,
+                    "conversation_id": msg_row["conversation_id"],
+                    "content": data["content"],
+                    "role": msg_row["role"],
+                    "timestamp": now,
+                    "updated": True,
+                }
             
             elif resource == "fact":
                 update_fields: list[str] = []

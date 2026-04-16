@@ -381,14 +381,98 @@ class IndexLayer:
         options: FindOptions,
     ) -> list[SearchResult]:
         """
-        Progressive search (hybrid with tiered loading)
+        True Progressive Search: L0 → L1 → L2
 
-        Same as hybrid but returns L0 summaries first.
+        Searches progressively through importance tiers:
+        - L0: High importance (min_importance=0.7)
+        - L1: Medium importance (min_importance=0.4)
+        - L2: All content (no importance filter)
+
+        Each result is marked with its tier in metadata.
         """
-        results = await self._find_hybrid(query, scope, options)
-        # Progressive mode returns same results; tiered content
-        # would be loaded separately via L2/L3 layers
-        return results
+        results: list[SearchResult] = []
+        seen_uris: set[str] = set()
+
+        # Step 1: L0 Search (high importance only)
+        l0_options = FindOptions(
+            limit=options.limit,
+            offset=options.offset,
+            min_importance=0.7,
+            min_score=options.min_score,
+            target_type=options.target_type,
+            entity_type=options.entity_type,
+        )
+        l0_results = await self._find_hybrid(query, scope, l0_options)
+        for r in l0_results:
+            if r.uri not in seen_uris:
+                results.append(self._mark_tier(r, "L0"))
+                seen_uris.add(r.uri)
+
+        if len(results) >= options.limit:
+            return results[:options.limit]
+
+        # Step 2: L1 Search (medium importance)
+        remaining = options.limit - len(results)
+        l1_options = FindOptions(
+            limit=remaining,
+            offset=options.offset,
+            min_importance=0.4,
+            min_score=options.min_score,
+            target_type=options.target_type,
+            entity_type=options.entity_type,
+        )
+        l1_results = await self._find_hybrid(query, scope, l1_options)
+        for r in l1_results:
+            if r.uri not in seen_uris:
+                results.append(self._mark_tier(r, "L1"))
+                seen_uris.add(r.uri)
+
+        if len(results) >= options.limit:
+            return results[:options.limit]
+
+        # Step 3: L2 Search (all content)
+        remaining = options.limit - len(results)
+        l2_options = FindOptions(
+            limit=remaining,
+            offset=options.offset,
+            min_importance=0.0,
+            min_score=options.min_score,
+            target_type=options.target_type,
+            entity_type=options.entity_type,
+        )
+        l2_results = await self._find_hybrid(query, scope, l2_options)
+        for r in l2_results:
+            if r.uri not in seen_uris:
+                results.append(self._mark_tier(r, "L2"))
+                seen_uris.add(r.uri)
+
+        return results[:options.limit]
+
+    def _mark_tier(self, result: SearchResult, tier: str) -> SearchResult:
+        """
+        Mark a SearchResult with tier information
+
+        SearchResult is frozen, so we create a new instance with
+        updated metadata containing the tier field.
+
+        Args:
+            result: Original SearchResult
+            tier: Tier level (L0, L1, L2)
+
+        Returns:
+            New SearchResult with tier in metadata
+        """
+        # Merge existing metadata with tier
+        metadata = {**result.metadata, "tier": tier}
+        return SearchResult(
+            uri=result.uri,
+            score=result.score,
+            title=result.title,
+            content=result.content,
+            metadata=metadata,
+            entity_type=result.entity_type,
+            resource_id=result.resource_id,
+        )
 
     # =========================================================================
     # URI-based Operations

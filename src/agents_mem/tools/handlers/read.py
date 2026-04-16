@@ -189,14 +189,132 @@ async def _list_resources(
 async def _read_fact(
     scope: Scope,
     query: dict[str, Any],
+    db: Any,
+    content_layer: ContentLayer,
 ) -> dict[str, Any]:
-    """读取/搜索事实"""
+    """读取/搜索事实 - 使用 KnowledgeLayer"""
+    from agents_mem.knowledge.layer import KnowledgeLayer
+    from agents_mem.knowledge.facts import get_fact_by_id
+    
     fact_id = query.get("id")
+    do_trace = query.get("trace") or False
     
     if fact_id:
-        return {"id": fact_id, "content": "Mock fact content", "fact_type": "observation"}
+        # 使用 KnowledgeLayer 获取事实
+        knowledge_layer = KnowledgeLayer(content_layer, db, None)
+        
+        try:
+            # 获取事实
+            fact = await knowledge_layer.get_fact(fact_id)
+            if not fact:
+                return {"error": f"Fact {fact_id} not found"}
+            
+            # 验证 scope
+            if fact.user_id != scope.user_id:
+                return {"error": "Fact not in scope"}
+            if scope.agent_id and fact.agent_id != scope.agent_id:
+                return {"error": "Fact not in scope"}
+            if scope.team_id and fact.team_id != scope.team_id:
+                return {"error": "Fact not in scope"}
+            
+            # 构建结果
+            result: dict[str, Any] = {
+                "id": fact.id,
+                "content": fact.content,
+                "fact_type": fact.fact_type.value,
+                "source_uri": fact.source_uri,
+                "source_type": fact.source_type.value if fact.source_type else None,
+                "source_id": fact.source_id,
+                "confidence": fact.confidence,
+                "verified": fact.verified,
+                "user_id": fact.user_id,
+                "created_at": fact.created_at,
+            }
+            
+            # 如果请求追溯，添加 trace 信息
+            if do_trace:
+                try:
+                    trace_result = await knowledge_layer.trace_fact(fact_id)
+                    # Convert TraceResult to dict for serialization
+                    trace_dict: dict[str, Any] = trace_result.model_dump() if hasattr(trace_result, "model_dump") else {
+                        "fact_id": fact_id,
+                        "source_content": None,
+                        "trace_chain": [],
+                    }
+                    result["trace"] = trace_dict
+                except Exception:
+                    # Trace 不可用时返回基本信息
+                    trace_dict = {
+                        "fact_id": fact_id,
+                        "source_uri": fact.source_uri,
+                        "trace_available": False,
+                    }
+                    result["trace"] = trace_dict
+            
+            return result
+        
+        except Exception as e:
+            # Fallback: 直接查询数据库
+            record = await get_fact_by_id(fact_id, db)
+            if not record:
+                return {"error": f"Fact {fact_id} not found"}
+            
+            # 验证 scope
+            if record.user_id != scope.user_id:
+                return {"error": "Fact not in scope"}
+            
+            return {
+                "id": record.id,
+                "content": record.content,
+                "fact_type": record.fact_type,
+                "source_uri": record.source_uri,
+                "confidence": record.confidence,
+                "user_id": record.user_id,
+                "created_at": record.created_at,
+            }
     
-    return {"facts": [], "message": "Use KnowledgeLayer for fact search"}
+    # 搜索事实
+    search_text = query.get("search")
+    if search_text:
+        from agents_mem.core.types import FactType
+        fact_type_str = query.get("fact_type") or query.get("factType")
+        fact_type = FactType(fact_type_str) if fact_type_str else None
+        
+        knowledge_layer = KnowledgeLayer(content_layer, db, None)
+        facts = await knowledge_layer.search_facts(search_text, scope, fact_type)
+        
+        return {
+            "facts": [
+                {
+                    "id": f.id,
+                    "content": f.content,
+                    "fact_type": f.fact_type.value,
+                    "confidence": f.confidence,
+                }
+                for f in facts
+            ],
+            "count": len(facts),
+            "query": search_text,
+        }
+    
+    # 列出事实
+    if query.get("list"):
+        from agents_mem.knowledge.facts import get_facts_by_scope
+        records = await get_facts_by_scope(scope, db)
+        return {
+            "facts": [
+                {
+                    "id": r.id,
+                    "content": r.content,
+                    "fact_type": r.fact_type,
+                    "confidence": r.confidence,
+                }
+                for r in records
+            ],
+            "count": len(records),
+        }
+    
+    return {"error": "No operation specified for fact. Provide id, search, or list."}
 
 
 # ============================================================================
@@ -285,7 +403,7 @@ def register_read_tool(mcp: FastMCP) -> None:
             
             # 处理 fact 资源
             if resource == "fact":
-                return await _read_fact(parsed_scope, query)
+                return await _read_fact(parsed_scope, query, db, content_layer)
             
             # 按ID读取
             if resource_id:

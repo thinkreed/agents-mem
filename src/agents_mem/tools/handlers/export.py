@@ -1,4 +1,4 @@
-﻿"""
+"""
 mem_export MCP 工具处理器
 
 Markdown 导出
@@ -184,6 +184,47 @@ def register_export_tool(mcp: FastMCP) -> None:
                     month.mkdir(parents=True, exist_ok=True)
                     (month / f"{fact['id']}.md").write_text(md, encoding="utf-8")
             
+            # Entity nodes export (L3 Knowledge Layer)
+            if include_entities:
+                from agents_mem.knowledge.layer import KnowledgeLayer
+                
+                try:
+                    # Create KnowledgeLayer for entity export
+                    knowledge_layer = KnowledgeLayer(content_layer, db, None)
+                    
+                    # Get entity tree for this scope
+                    entity_tree = await knowledge_layer.get_entity_tree(parsed_scope)
+                    
+                    if entity_tree and entity_tree.nodes:
+                        entities_dir = l3_dir / "entities"
+                        entities_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Generate entity nodes markdown
+                        entities_md = "# Entity Nodes\n\n"
+                        entities_md += f"**Total Entities**: {entity_tree.total_entities}\n"
+                        entities_md += f"**Total Facts**: {entity_tree.total_facts}\n"
+                        entities_md += f"**Max Depth**: {entity_tree.max_depth}\n\n"
+                        entities_md += "---\n\n"
+                        
+                        # List all entity nodes
+                        for node_id, node in entity_tree.nodes.items():
+                            entities_md += f"## {node.name}\n\n"
+                            entities_md += f"- **ID**: {node.id}\n"
+                            entities_md += f"- **Type**: {node.entity_type}\n"
+                            entities_md += f"- **Depth**: {node.depth}\n"
+                            entities_md += f"- **Fact Count**: {node.fact_count}\n"
+                            if node.parent_id:
+                                entities_md += f"- **Parent**: {node.parent_id}\n"
+                            if node.children:
+                                entities_md += f"- **Children**: {', '.join(node.children)}\n"
+                            entities_md += "\n"
+                        
+                        # Write entities file
+                        (entities_dir / "entities.md").write_text(entities_md, encoding="utf-8")
+                        stats["entities"] = entity_tree.total_entities
+                except Exception:
+                    pass  # Entities export is optional
+            
             # README
             readme = _generate_readme_md(parsed_scope, datetime.now().isoformat(), stats)
             (export_dir / "README.md").write_text(readme, encoding="utf-8")
@@ -192,7 +233,7 @@ def register_export_tool(mcp: FastMCP) -> None:
                 "status": "success",
                 "export_path": str(export_dir),
                 "L2_content": {"directory": str(l2_dir), "stats": {"documents": stats["documents"]}},
-                "L3_knowledge": {"directory": str(l3_dir), "stats": {"facts": stats["facts"]}},
+                "L3_knowledge": {"directory": str(l3_dir), "stats": {"facts": stats["facts"], "entities": stats.get("entities", 0)}},
             }
         
         except AgentMemError as e:

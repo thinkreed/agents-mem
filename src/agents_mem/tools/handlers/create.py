@@ -119,15 +119,24 @@ def register_create_tool(mcp: FastMCP) -> None:
                 return {"id": fact_id, "uri": fact_uri, "source_uri": source_uri}
             
             elif resource == "asset":
+                # Required fields for asset
+                if "filename" not in data:
+                    return {"error": "Asset requires 'filename' field"}
+                if "file_type" not in data:
+                    return {"error": "Asset requires 'file_type' field"}
+                
                 create_data = {
-                    "title": data.get("title") or "Untitled Asset",
+                    "title": data.get("title") or data.get("filename"),
                     "content": data.get("content") or "",
                     "doc_type": "file",
-                    "metadata": {"asset_type": data.get("asset_type") or "file"},
+                    "metadata": {
+                        "filename": data.get("filename"),
+                        "file_type": data.get("file_type"),
+                        "asset_type": data.get("asset_type") or "file",
+                    },
                 }
-                content = await content_layer.create("document", parsed_scope, create_data)
-                asset_uri = content.uri.replace("/documents/", "/assets/")
-                return {"id": content.id, "uri": asset_uri}
+                content = await content_layer.create("asset", parsed_scope, create_data)
+                return {"id": content.id, "uri": content.uri}
             
             elif resource == "team":
                 team_id = str(uuid.uuid4())

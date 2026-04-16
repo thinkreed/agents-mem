@@ -9,9 +9,11 @@ from agents_mem.content.resources.conversation import (
     ConversationRepository,
     MessageRepository,
 )
+from agents_mem.content.resources.asset import AssetRepository
 
 __all__ = [
     "DocumentRepository",
     "ConversationRepository",
     "MessageRepository",
+    "AssetRepository",
 ]

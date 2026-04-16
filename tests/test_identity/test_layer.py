@@ -45,15 +45,11 @@ class TestIdentityLayer:
         assert layer.validate_scope(scope) is True
 
     def test_validate_scope_missing_user(self):
-        """测试缺少 user_id 的 Scope"""
+        """测试缺少 user_id 的 scope 验证"""
         layer = IdentityLayer()
-        # Pydantic 会要求 user_id 有值，但我们可以测试空字符串
-        # Scope(user_id="") 会因为 Field 的必填属性而抛出错误
-        # 所以我们测试传入空字符串
-        scope = Scope(user_id="user123")
-        # 然后修改验证逻辑测试空字符串
-        # frozen=True 所以不能修改，我们需要测试其他方式
-        pass  # Pydantic 会处理这个
+        # Pydantic 允许空字符串，验证层会拒绝
+        invalid_scope = Scope(user_id="", agent_id="agent-001")
+        assert layer.validate_scope(invalid_scope) is False
 
     def test_validate_scope_empty_agent(self):
         """测试空 agent_id"""
@@ -70,13 +66,15 @@ class TestIdentityLayer:
         layer.validate_scope_or_raise(scope)  # 不应该抛出异常
 
     def test_validate_scope_or_raise_invalid(self):
-        """测试 validate_scope_or_raise 异常情况"""
+        """测试 validate_scope_or_raise 抛出异常"""
         layer = IdentityLayer()
-        # 构造一个无效的 scope (通过修改来测试)
-        # 由于 Scope 是 frozen 的，我们需要用特殊方式
-        # 这里我们测试 ScopeError 被正确抛出的情况
-        # 实际上 Pydantic 会阻止创建无效 Scope
-        pass
+        # Pydantic 允许空字符串，验证层会抛出异常
+        invalid_scope = Scope(user_id="", agent_id="agent-001")
+
+        with pytest.raises(ScopeError) as exc_info:
+            layer.validate_scope_or_raise(invalid_scope)
+
+        assert "user_id" in str(exc_info.value)
 
     def test_check_permission_read(self):
         """测试 read 权限"""

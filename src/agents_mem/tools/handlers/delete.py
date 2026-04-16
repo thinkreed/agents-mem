@@ -1,4 +1,4 @@
-﻿"""
+"""
 mem_delete MCP 工具处理器
 
 删除资源 (级联)
@@ -78,9 +78,8 @@ def register_delete_tool(mcp: FastMCP) -> None:
             content_layer = ContentLayer(db=db)
             uri_scope = _to_uri_scope(parsed_scope)
             
-            if resource in ["document", "asset"]:
-                rt = "document" if resource == "asset" else resource
-                uri = URISystem.build(uri_scope, rt, id)
+            if resource == "document":
+                uri = URISystem.build(uri_scope, "document", id)
                 deleted = await content_layer.delete(uri)
                 if deleted:
                     try:
@@ -88,8 +87,18 @@ def register_delete_tool(mcp: FastMCP) -> None:
                         await db.run("DELETE FROM facts WHERE source_id = ?", [id])
                     except Exception:
                         pass
-                asset_uri = uri.replace("/documents/", "/assets/") if resource == "asset" else uri
-                return {"deleted": deleted, "id": id, "uri": asset_uri, "cascade": ["tiered_content", "facts"]}
+                return {"deleted": deleted, "id": id, "uri": uri, "cascade": ["tiered_content", "facts"]}
+            
+            elif resource == "asset":
+                uri = URISystem.build(uri_scope, "asset", id)
+                deleted = await content_layer.delete(uri)
+                if deleted:
+                    try:
+                        await db.run("DELETE FROM tiered_content WHERE source_id = ?", [id])
+                        await db.run("DELETE FROM facts WHERE source_id = ?", [id])
+                    except Exception:
+                        pass
+                return {"deleted": deleted, "id": id, "uri": uri, "cascade": ["tiered_content", "facts"]}
             
             elif resource == "conversation":
                 uri = URISystem.build(uri_scope, "conversation", id)

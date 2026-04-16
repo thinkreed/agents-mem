@@ -42,6 +42,12 @@ from agents_mem.content.resources.conversation import (
     ConversationCreateInput,
     MessageCreateInput,
 )
+from agents_mem.content.resources.asset import (
+    AssetRepository,
+    Asset,
+    AssetCreateInput,
+    AssetUpdateInput,
+)
 from agents_mem.llm import LLMClientProtocol, OllamaLLMClient, MockLLMClient
 from agents_mem.sqlite.connection import DatabaseConnection
 
@@ -232,6 +238,7 @@ class ContentLayer:
         self._conversation_repo = ConversationRepository(
             db, self._message_repo, self._tiered
         )
+        self._asset_repo = AssetRepository(db, self._tiered)
         
         # L1 Index Layer (可选)
         self._index_layer = index_layer
@@ -297,6 +304,14 @@ class ContentLayer:
                 conv = result[0]
                 return self._conversation_to_content(conv)
             return self._conversation_to_content(result)
+        
+        if resource_type == "asset" or resource_type == "assets":
+            result = await self._asset_repo.get(scope, resource_id, tier)
+            if result is None:
+                return None
+            if isinstance(result, str):
+                return result
+            return self._asset_to_content(result)
         
         # 其他资源类型
         raise NotFoundError(
@@ -367,6 +382,17 @@ class ContentLayer:
             conv = await self._conversation_repo.create(scope, input)
             return self._conversation_to_content(conv)
         
+        if resource_type == "asset":
+            # 资产必须有 filename 和 file_type
+            if "filename" not in data or "file_type" not in data:
+                raise ValidationError(
+                    message="Asset requires filename and file_type",
+                    field="filename",
+                )
+            asset_input = AssetCreateInput(**data)
+            asset = await self._asset_repo.create(scope, asset_input)
+            return self._asset_to_content(asset)
+        
         raise ValidationError(
             message=f"Unsupported resource type: {resource_type}",
             field="resource_type",
@@ -410,6 +436,11 @@ class ContentLayer:
             conv = await self._conversation_repo.update(scope, resource_id, title, ended_at)
             return self._conversation_to_content(conv)
         
+        if resource_type == "asset" or resource_type == "assets":
+            asset_input = AssetUpdateInput(**data)
+            asset = await self._asset_repo.update(scope, resource_id, asset_input)
+            return self._asset_to_content(asset)
+        
         raise NotFoundError(
             message=f"Unsupported resource type: {resource_type}",
             resource_type=resource_type,
@@ -443,7 +474,118 @@ class ContentLayer:
         if resource_type == "conversation" or resource_type == "conversations":
             return await self._conversation_repo.delete(scope, resource_id)
         
+        if resource_type == "asset" or resource_type == "assets":
+            return await self._asset_repo.delete(scope, resource_id)
+        
         return False
+    
+    # =========================================================================
+    # Index Layer 委托方法
+    # =========================================================================
+    
+    async def get_index(self, uri: str) -> dict[str, Any] | None:
+        """
+        获取索引条目
+        
+        委托给 L1 Index Layer
+        
+        Args:
+            uri: 资源 URI
+            
+        Returns:
+            索引条目字典，或 None 如果不存在
+            
+        Raises:
+            NotFoundError: Index Layer 未配置
+        """
+        if self._index_layer is None:
+            return None
+        return await self._index_layer.get_index(uri)
+    
+    async def create_index(
+        self,
+        uri: str,
+        scope: Scope,
+        target_type: str,
+        target_id: str,
+        title: str,
+        **metadata: Any,
+    ) -> dict[str, Any]:
+        """
+        创建索引条目
+        
+        委托给 L1 Index Layer
+        
+        Args:
+            uri: 资源 URI
+            scope: 作用域
+            target_type: 目标类型
+            target_id: 目标 ID
+            title: 标题
+            **metadata: 其他元数据
+            
+        Returns:
+            创建的索引条目
+            
+        Raises:
+            ValidationError: Index Layer 未配置
+        """
+        if self._index_layer is None:
+            raise ValidationError(
+                message="Index Layer is not configured",
+                field="index_layer",
+                value=None,
+            )
+        return await self._index_layer.create_index(
+            uri, scope, target_type, target_id, title, **metadata
+        )
+    
+    async def delete_index(self, uri: str) -> bool:
+        """
+        删除索引条目
+        
+        委托给 L1 Index Layer
+        
+        Args:
+            uri: 资源 URI
+            
+        Returns:
+            是否成功删除
+            
+        Raises:
+            NotFoundError: Index Layer 未配置
+        """
+        if self._index_layer is None:
+            return False
+        return await self._index_layer.delete_index(uri)
+    
+    async def search_index(
+        self,
+        scope: Scope,
+        query: str,
+        mode: SearchMode = "hybrid",
+        limit: int = 10,
+    ) -> list[SearchResult]:
+        """
+        搜索索引
+        
+        委托给 L1 Index Layer
+        
+        Args:
+            scope: 作用域
+            query: 搜索查询
+            mode: 搜索模式
+            limit: 返回数量
+            
+        Returns:
+            搜索结果列表
+            
+        Raises:
+            ValidationError: Index Layer 未配置
+        """
+        if self._index_layer is None:
+            return []
+        return await self._index_layer.search_index(scope, query, mode, limit)
     
     # =========================================================================
     # 核心方法: 搜索
@@ -509,6 +651,33 @@ class ContentLayer:
                 else:
                     results.append(content)
         
+        # 搜索资产
+        if resource_type == None or resource_type == "asset":
+            assets = await self._asset_repo.search(scope, query, mode, limit)
+            for asset in assets:
+                content = self._asset_to_content(asset)
+                if tier:
+                    # 获取分层视图
+                    view = await self._tiered.get_view(content, tier)
+                    tier_level: TierLevel
+                    if isinstance(tier, str):  # type: ignore[reportUnnecessaryIsInstance]
+                        tier_level = TierLevel(tier)
+                    else:
+                        tier_level = tier
+                    results.append(Content(
+                        id=content.id,
+                        uri=content.uri,
+                        title=content.title,
+                        body=view,
+                        content_type=content.content_type,
+                        user_id=content.user_id,
+                        agent_id=content.agent_id,
+                        team_id=content.team_id,
+                        tier=tier_level,
+                    ))
+                else:
+                    results.append(content)
+        
         # 如果有 L1 Index Layer，使用它进行搜索
         if self._index_layer:
             _ = await self._index_layer.search_index(scope, query, mode, limit)
@@ -545,6 +714,10 @@ class ContentLayer:
             if scope.agent_id:
                 convs = await self._conversation_repo.list(scope, limit, offset)
                 results.extend([self._conversation_to_content(conv) for conv in convs])
+        
+        if resource_type == None or resource_type == "asset":
+            assets = await self._asset_repo.list(scope, limit, offset)
+            results.extend([self._asset_to_content(asset) for asset in assets])
         
         return results
     
@@ -667,6 +840,31 @@ class ContentLayer:
                 "message_count": conv.message_count,
                 "token_count_input": conv.token_count_input,
                 "token_count_output": conv.token_count_output,
+            },
+        )
+    
+    def _asset_to_content(self, asset: Asset) -> Content:
+        """将 Asset 转换为 Content"""
+        return Content(
+            id=asset.id,
+            uri=asset.uri,
+            title=asset.title or asset.filename,
+            body=asset.extracted_text or f"Asset: {asset.filename} ({asset.file_type})",
+            content_type=ContentType.FILE,
+            user_id=asset.user_id,
+            agent_id=asset.agent_id,
+            team_id=asset.team_id,
+            is_global=asset.is_global,
+            source_url=asset.source_url,
+            source_path=asset.source_path,
+            metadata={
+                "filename": asset.filename,
+                "file_type": asset.file_type,
+                "file_size": asset.file_size,
+                "storage_path": asset.storage_path,
+                "description": asset.description,
+                "text_extracted": asset.text_extracted,
+                **asset.metadata,
             },
         )
     
