@@ -218,7 +218,7 @@ class MockLLMClient:
 
 
 # 保持向后兼容的协议定义
-from typing import Any, AsyncGenerator, Coroutine
+from typing import Any, AsyncGenerator, Protocol
 
 
 class LLMClientProtocol(Protocol):
