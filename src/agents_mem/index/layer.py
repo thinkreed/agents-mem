@@ -1,7 +1,7 @@
 """
 L1 Index Layer Main Module
 
-Implements the Index Layer (L1) for the 6-layer progressive disclosure architecture.
+Implements the Index Layer (L1) for the 4-layer Clean Architecture.
 
 L1 Responsibilities:
 - URI System (using URISystem from core)
