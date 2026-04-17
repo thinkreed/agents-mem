@@ -1,5 +1,5 @@
 - 基于最新 origin/main 拉出一个新分支，在新分支上工作,任务完成后合并回到 origin/main。
-- tdd 驱动，按照 ./docs/test-infra.md 建立完整测试体系。
+- tdd 驱动，运行 `pytest --cov=agents_mem --cov-fail-under=100` 确保完整测试体系。
 - 必须进行功能测试，确保 agents-mem mcp 的 crud 核心链路正常工作。
 - 必须100% 测试覆盖，必须所有测试通过。
 - 设计变更后必须补全和修改测试用例。

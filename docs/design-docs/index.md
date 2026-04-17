@@ -32,6 +32,23 @@
 - **deprecated**: Outdated, pending deletion or update
 - **draft**: Draft, not yet implemented
 
+## Module Documentation
+
+All modules now have AGENTS.md documentation:
+
+| Module | Path | Status |
+|--------|------|--------|
+| core | `src/agents_mem/core/AGENTS.md` | ✅ active |
+| identity | `src/agents_mem/identity/AGENTS.md` | ✅ active |
+| index | `src/agents_mem/index/AGENTS.md` | ✅ active |
+| content | `src/agents_mem/content/AGENTS.md` | ✅ active |
+| knowledge | `src/agents_mem/knowledge/AGENTS.md` | ✅ active |
+| sqlite | `src/agents_mem/sqlite/AGENTS.md` | ✅ active |
+| tools | `src/agents_mem/tools/AGENTS.md` | ✅ active |
+| embedder | `src/agents_mem/embedder/AGENTS.md` | ✅ active |
+| export | `src/agents_mem/export/AGENTS.md` | ✅ active |
+| llm | `src/agents_mem/llm/AGENTS.md` | ✅ active |
+
 ## Adding New Documents
 
 1. Register in this index
