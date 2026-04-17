@@ -16,6 +16,7 @@ from agents_mem.core.uri import URISystem, Scope as URIScope
 from agents_mem.identity.layer import IdentityLayer
 from agents_mem.content.layer import ContentLayer
 from agents_mem.sqlite.connection import get_connection
+from agents_mem.embedder import OllamaEmbedder
 
 
 def _to_uri_scope(scope: Scope) -> URIScope:
@@ -144,7 +145,8 @@ def register_export_tool(mcp: FastMCP) -> None:
             export_dir.mkdir(parents=True, exist_ok=True)
             
             db = await get_connection()
-            content_layer = ContentLayer(db=db)
+            embedder = OllamaEmbedder()
+            content_layer = ContentLayer(db=db, embedder=embedder)
             
             l2_dir = export_dir / "L2-content"
             l3_dir = export_dir / "L3-knowledge"

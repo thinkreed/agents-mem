@@ -209,18 +209,20 @@ class ContentLayer:
         index_layer: IndexLayerProtocol | None = None,
         llm_client: LLMClientProtocol | None = None,
         tiered_cache_config: TieredCacheConfig | None = None,
+        embedder: Any | None = None,
     ):
         """
         初始化 Content Layer
-        
+
         Args:
             db: 数据库连接
             index_layer: L1 Index Layer (可选)
             llm_client: LLM 客户端 (用于分层视图生成)
             tiered_cache_config: 分层视图缓存配置
+            embedder: 嵌入向量生成器 (可选，用于向量搜索)
         """
         self._db = db
-        
+
         # 初始化分层视图能力
         # 优先使用提供的 llm_client，否则尝试创建 Ollama 客户端，最后回退到 Mock
         if llm_client is None:
@@ -228,22 +230,23 @@ class ContentLayer:
                 llm_client = OllamaLLMClient()
             except Exception:
                 llm_client = MockLLMClient()
-        
+
         self._tiered = TieredViewCapability(
             llm_client=llm_client,
             cache_config=tiered_cache_config,
         )
-        
+
         # 初始化仓库
-        self._document_repo = DocumentRepository(db, self._tiered)
+        self._document_repo = DocumentRepository(db, self._tiered, embedder)
         self._message_repo = MessageRepository(db)
         self._conversation_repo = ConversationRepository(
             db, self._message_repo, self._tiered
         )
         self._asset_repo = AssetRepository(db, self._tiered)
-        
+
         # L1 Index Layer (可选)
         self._index_layer = index_layer
+        self._embedder = embedder
     
     # =========================================================================
     # 核心方法: CRUD

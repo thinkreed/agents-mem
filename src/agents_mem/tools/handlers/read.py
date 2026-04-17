@@ -28,6 +28,7 @@ from agents_mem.core.uri import URISystem, Scope as URIScope
 from agents_mem.identity.layer import IdentityLayer
 from agents_mem.content.layer import ContentLayer
 from agents_mem.sqlite.connection import get_connection
+from agents_mem.embedder import OllamaEmbedder
 
 
 def _to_uri_scope(scope: Scope) -> URIScope:
@@ -397,9 +398,10 @@ def register_read_tool(mcp: FastMCP) -> None:
             
             # 获取数据库连接
             db = await get_connection()
-            
+
             # 初始化 Content Layer
-            content_layer = ContentLayer(db=db)
+            embedder = OllamaEmbedder()
+            content_layer = ContentLayer(db=db, embedder=embedder)
             
             # 处理 fact 资源
             if resource == "fact":

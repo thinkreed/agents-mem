@@ -15,6 +15,7 @@ from agents_mem.core.uri import URISystem, Scope as URIScope
 from agents_mem.identity.layer import IdentityLayer
 from agents_mem.content.layer import ContentLayer
 from agents_mem.sqlite.connection import get_connection
+from agents_mem.embedder import OllamaEmbedder
 
 
 def _to_uri_scope(scope: Scope) -> URIScope:
@@ -74,7 +75,8 @@ def register_create_tool(mcp: FastMCP) -> None:
             IdentityLayer().validate_scope_or_raise(parsed_scope)
             
             db = await get_connection()
-            content_layer = ContentLayer(db=db)
+            embedder = OllamaEmbedder()
+            content_layer = ContentLayer(db=db, embedder=embedder)
             uri_scope = _to_uri_scope(parsed_scope)
             
             if resource == "document":

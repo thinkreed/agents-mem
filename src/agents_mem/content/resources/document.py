@@ -21,6 +21,7 @@ from agents_mem.core.exceptions import NotFoundError, ValidationError, ScopeErro
 from agents_mem.core.uri import URISystem, Scope as URIScope
 from agents_mem.core.constants import RESOURCE_DOCUMENT
 from agents_mem.content.capabilities.tiered import TieredViewCapability
+from agents_mem.embedder import OllamaEmbedder
 
 # 使用 types.Scope 作为主要 Scope 类型
 Scope = TypesScope
@@ -139,16 +140,19 @@ class DocumentRepository:
         self,
         db: DatabaseConnectionProtocol,
         tiered: TieredViewCapability | None = None,
+        embedder: OllamaEmbedder | None = None,
     ):
         """
         初始化文档仓库
-        
+
         Args:
             db: 数据库连接
             tiered: 分层视图能力 (可选)
+            embedder: 嵌入向量生成器 (可选)
         """
         self._db = db
         self._tiered = tiered
+        self._embedder = embedder
     
     # =========================================================================
     # CRUD 操作
@@ -228,7 +232,27 @@ class DocumentRepository:
                 now,
             ],
         )
-        
+
+        # 向量索引（如果启用了 embedder）
+        if self._embedder:
+            try:
+                from agents_mem.index.capabilities.vector_search import VectorSearchCapability
+                vector_search = VectorSearchCapability(self._db, self._embedder)
+                await vector_search.initialize()
+                uri = f"mem://{scope.user_id}/{scope.agent_id or '_'}/{scope.team_id or '_'}/document/{doc_id}"
+                await vector_search.index_document(
+                    uri=uri,
+                    content=input.content,
+                    user_id=scope.user_id,
+                    resource_type="document",
+                    agent_id=scope.agent_id,
+                    team_id=scope.team_id,
+                    metadata=input.metadata,
+                )
+            except Exception:
+                # 向量索引失败不影响创建
+                pass
+
         return Document(
             id=doc_id,
             user_id=scope.user_id,

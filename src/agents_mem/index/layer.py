@@ -27,6 +27,7 @@ from agents_mem.index.metadata import MetadataIndex, MetadataEntry, SearchOption
 from agents_mem.index.capabilities.vector_search import (
     VectorSearchCapability,
     VectorSearchOptions,
+    create_vector_search_capability,
 )
 
 
@@ -185,8 +186,10 @@ class IndexLayer:
     def __init__(
         self,
         identity_layer: IdentityLayer,
-        db: DBConnection,
+        db: Any,
         account: str = "default",
+        embedder: Any | None = None,
+        use_mock_embedder: bool = False,
     ):
         """
         Initialize Index Layer
@@ -195,6 +198,8 @@ class IndexLayer:
             identity_layer: L0 IdentityLayer for scope validation
             db: Database connection
             account: Account name for URI adapter
+            embedder: Ollama embedder instance (optional)
+            use_mock_embedder: Use mock embedder for testing
         """
         self._identity = identity_layer
         self._db = db
@@ -203,8 +208,12 @@ class IndexLayer:
         # Initialize MetadataIndex
         self._metadata_index = MetadataIndex(db, identity_layer)
 
-        # VectorSearchCapability is optional
+        # Initialize VectorSearchCapability
         self._vector_search: VectorSearchCapability | None = None
+        if embedder is not None or use_mock_embedder:
+            self._vector_search = create_vector_search_capability(
+                db, embedder, use_mock_embedder
+            )
 
     @property
     def metadata_index(self) -> MetadataIndex:
