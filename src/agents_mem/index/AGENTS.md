@@ -2,7 +2,7 @@
 
 **Role**: L1 Index Layer implementation
 **Layer**: L1
-**Dependencies**: core/, identity/, openviking/
+**Dependencies**: core/, identity/, embedder/
 
 ---
 
@@ -11,7 +11,7 @@
 L1 provides indexing and search capabilities:
 - URI system for resource addressing
 - Metadata index (SQLite FTS5)
-- Vector search via OpenViking
+- Vector search via SQLite + Ollama embeddings (built-in capability)
 - Hybrid search (FTS + Vector with RRF)
 
 ### Files
@@ -48,7 +48,7 @@ Combines FTS and semantic results intelligently.
 
 ```python
 # Initialize
-index = IndexLayer(identity_layer, db_connection)
+index = IndexLayer(identity_layer, db_connection, embedder)
 
 # Search
 results = await index.search(
@@ -67,7 +67,7 @@ await index.index_document(uri, content, metadata)
 ## Vector Search Flow
 
 1. **Text** → Ollama (bge-m3) → **Embedding vector**
-2. **Vector** → OpenViking → **Similarity search**
+2. **Vector** → SQLite (vector storage) → **Similarity search**
 3. **Results** → RRF fusion with FTS → **Final ranking**
 
 ---
@@ -76,8 +76,8 @@ await index.index_document(uri, content, metadata)
 
 | Service | Address | Purpose |
 |---------|---------|---------|
-| OpenViking | localhost:1933 | Vector storage/search |
-| Ollama | localhost:11434 | Embedding generation |
+| Ollama | localhost:11434 | Embedding generation (bge-m3) |
+| SQLite | ~/.agents_mem/ | Primary + Vector storage |
 
 ---
 
@@ -87,4 +87,4 @@ await index.index_document(uri, content, metadata)
 pytest tests/test_index/ -xvs
 ```
 
-**Note**: Tests may need mocking for OpenViking/Ollama in CI.
+**Note**: Tests use MockEmbedder for deterministic results in CI.

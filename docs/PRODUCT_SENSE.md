@@ -75,7 +75,7 @@
 ```
 1. 用户调用 mem_create(document, scope, content)
 2. 存储到 SQLite (同步)
-3. 存储到 OpenViking (同步)
+3. 排队 Embedding (异步)
 4. 排队 Embedding (异步)
 5. 返回 { id, uri }
 ```
@@ -84,7 +84,7 @@
 
 ```
 1. 用户调用 mem_read({ search: "关键词", scope })
-2. OpenViking 混合搜索
+2. SQLite 混合搜索
 3. 返回结果 + L0 摘要
 4. 用户可选择加载 L1/L2
 ```

@@ -63,11 +63,7 @@ cp .env.example .env
 
 # 编辑 .env
 cat > .env << EOF
-# OpenViking 配置 (L1 Index层的VectorSearch内置能力)
-OPENVIKING_BASE_URL=http://localhost:1933
-OPENVIKING_API_KEY=your-api-key
-
-# Ollama 配置 (L2 Content层的TieredView内置能力)
+# Ollama 配置 (L2 Content层的TieredView内置能力 + L1 Vector Search)
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=bge-m3
 

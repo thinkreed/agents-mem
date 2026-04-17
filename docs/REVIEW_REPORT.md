@@ -33,7 +33,7 @@ L3 (Knowledge) → L2 (Content) → L1 (Index) → L0 (Identity)
 | 层级 | 文件路径 | 行数 | 依赖验证 |
 |------|----------|------|----------|
 | L0 Identity | `identity/layer.py` | 356 | ✅ 仅依赖 core |
-| L1 Index | `index/layer.py` | 762 | ✅ 依赖 L0 + core + openviking |
+| L1 Index | `index/layer.py` | 762 | ✅ 依赖 L0 + core + embedder |
 | L2 Content | `content/layer.py` | 901 | ✅ 依赖 L1(Protocol) + core + llm + sqlite |
 | L3 Knowledge | `knowledge/layer.py` | 822 | ✅ 只读依赖 L2(Protocol) |
 
@@ -109,7 +109,7 @@ L3 (Knowledge) → L2 (Content) → L1 (Index) → L0 (Identity)
 | 模块 | 路径 | 重要性 | 影响 |
 |------|------|--------|------|
 | `index/metadata.py` | L1核心搜索 | 🔴 高 | FTS搜索无独立测试 |
-| `index/capabilities/vector_search.py` | 向量搜索能力 | 🔴 高 | OpenViking集成无测试 |
+| `index/capabilities/vector_search.py` | 向量搜索能力 | 🔴 高 | SQLite+Ollama 集成无测试 |
 | `content/capabilities/tiered.py` | 分层视图能力 | 🔴 高 | Token预算控制无测试 |
 | `sqlite/migrations.py` | 数据库迁移 | 🔴 高 | Schema升级无测试 |
 

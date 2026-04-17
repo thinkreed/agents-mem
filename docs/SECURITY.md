@@ -62,7 +62,7 @@ class CreateDocumentRequest(BaseModel):
 |------|----------|
 | MCP 工具 | 参数类型、必填、枚举值 |
 | SQLite CRUD | ID 格式、Scope 匹配 |
-| OpenViking | URI 格式、Scope 映射 |
+| L1 Index | Vector search uses SQLite + Ollama |
 
 ### 禁止的输入
 
@@ -163,8 +163,7 @@ chmod 600 ~/.agents_mem/agents_mem.db
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
 | `OLLAMA_HOST` | Ollama 地址 | `http://localhost:11434` |
-| `OPENVIKING_BASE_URL` | OpenViking 地址 | `http://localhost:1933` |
-| `OPENVIKING_API_KEY` | API Key (可选) | — |
+| `OLLAMA_HOST` | Ollama 地址 | `http://localhost:11434` |
 
 **不要**在代码中硬编码密钥
 

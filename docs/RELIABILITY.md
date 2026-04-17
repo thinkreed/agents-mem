@@ -10,42 +10,38 @@
 
 | 服务 | 地址 | 用途 | 检查命令 |
 |------|------|------|----------|
-| Ollama | `localhost:11434` | Embedding (bge-m3) | `curl http://localhost:11434/api/tags` |
-| OpenViking | `localhost:1933` | 向量搜索 | `curl http://localhost:1933/health` |
-| SQLite | `~/.agents_mem/` | 主数据存储 | 自动创建 |
+| Ollama | `localhost:11434` | Embedding (bge-m3) + LLM | `curl http://localhost:11434/api/tags` |
+| SQLite | `~/.agents_mem/` | 主数据 + 向量存储 | 自动创建 |
 
 ### 启动前检查
 
 ```bash
 # 检查 Ollama
 curl -s http://localhost:11434/api/tags | grep -q "bge-m3" && echo "✅ Ollama OK" || echo "❌ Ollama 需要启动"
-
-# 检查 OpenViking
-curl -s http://localhost:1933/health && echo "✅ OpenViking OK" || echo "❌ OpenViking 需要启动"
 ```
 
 ---
 
 ## 二、故障排查
 
-### OpenViking 连接失败
+### Ollama 连接失败
 
-**症状**: 搜索返回连接错误  
+**症状**: Embedding 或 LLM 调用返回错误  
 **原因**: 
-- OpenViking 服务未运行
-- API key 不匹配
+- Ollama 服务未运行
+- 模型未下载
 - 网络问题
 
 **解决**:
-1. 启动 OpenViking: `openviking start`
-2. 验证 API key 配置
-3. 检查网络连接: `curl http://localhost:1933/health`
+1. 启动 Ollama: `ollama serve`
+2. 下载模型: `ollama pull bge-m3`
+3. 检查连接: `curl http://localhost:11434/api/tags`
 
 ### 搜索返回空结果
 
 **症状**: 文档已存储但搜索返回 `[]`  
 **原因**:
-- OpenViking 尚未异步处理完成
+- 向量索引尚未异步处理完成
 - Ollama 不可用
 - URI 路径不匹配
 - Scope 不匹配
@@ -59,7 +55,7 @@ curl -s http://localhost:1933/health && echo "✅ OpenViking OK" || echo "❌ Op
 ### 中文搜索无结果
 
 **症状**: 中文查询返回空  
-**解决**: 使用 `searchMode: 'hybrid'` — OpenViking embeddings 支持中文语义
+**解决**: 使用 `searchMode: 'hybrid'` — Ollama bge-m3 embeddings 支持中文语义
 
 ### Embedding 失败
 
@@ -113,7 +109,7 @@ delay = retry_delay * (2 ** retry_count)
 {
     "level": "info" | "warn" | "error",
     "timestamp": 1234567890,       # Unix 秒
-    "module": "openviking",        # 模块名
+    "module": "vector_search",   # 模块名
     "message": "...",              # 人类可读
     "data": {...}                  # 机器可读上下文
 }

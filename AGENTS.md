@@ -1,7 +1,7 @@
 # AGENTS.md — agents-mem-py
 
 **Role**: Python developer for 4-layer agent memory system  
-**Stack**: Python 3.11+ / FastMCP / SQLite / OpenViking  
+**Stack**: Python 3.11+ / FastMCP / SQLite / Ollama  
 **Constraint**: 100% test coverage | L0-L3 architecture
 
 ---
@@ -75,7 +75,7 @@ src/agents_mem/
 ├── knowledge/         # L3: Fact extraction, entity tree, trace
 ├── export/            # Markdown export with Jinja2 templates
 ├── sqlite/            # Database connection, migrations, 13 tables
-├── openviking/        # OpenViking HTTP client
+├── embedder/           # Ollama embedding client
 ├── llm/               # LLM client integration
 ├── tools/             # MCP tool handlers (create/read/update/delete/export)
 ├── mcp_server.py      # FastMCP server entry
@@ -195,7 +195,7 @@ docs/
 
 | Issue | Solution |
 |-------|----------|
-| OpenViking connection fail | Start service on `localhost:1933`, verify `OPENVIKING_API_KEY` |
+| Ollama connection fail | Start service on `localhost:11434`, verify `OLLAMA_HOST` |
 | Search returns empty | Wait for async processing, check Ollama on `localhost:11434`, verify scope match |
 | Chinese search no results | Use `search_mode: 'hybrid'` |
 | URI path mismatch | Always use `URISystem.build_target_uri()` for consistency |
@@ -208,9 +208,8 @@ docs/
 
 | Service | Address | Purpose | Check |
 |---------|---------|---------|-------|
-| OpenViking | `localhost:1933` | Vector search | `curl http://localhost:1933/health` |
-| Ollama | `localhost:11434` | Embedding (bge-m3) | `curl http://localhost:11434/api/tags` |
-| SQLite | `~/.agents_mem/` | Primary storage | Auto-created on first run |
+| Ollama | `localhost:11434` | Embedding (bge-m3) + LLM | `curl http://localhost:11434/api/tags` |
+| SQLite | `~/.agents_mem/` | Primary + Vector storage | Auto-created on first run |
 
 ---
 

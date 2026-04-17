@@ -101,7 +101,7 @@ Implements the 5 MCP tools exposed via FastMCP:
 | Mode | Description |
 |------|-------------|
 | `fts` | Full-text search via SQLite FTS5 |
-| `semantic` | Vector similarity via OpenViking |
+| `semantic` | Vector similarity via SQLite+Ollama |
 | `hybrid` | RRF fusion of FTS + semantic (default) |
 | `progressive` | L0 → L1 → L2 fallback for token limits |
 

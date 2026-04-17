@@ -55,10 +55,10 @@ if input.get("name") and input.get("email"):  # 不完整验证
 # 好 — 结构化
 import logging
 logger = logging.getLogger(__name__)
-logger.warning("Retry", extra={"module": "openviking", "retry": 2, "max": 3, "error": str(e)})
+logger.warning("Retry", extra={"module": "vector_search", "retry": 2, "max": 3, "error": str(e)})
 
 # 差 — 字符串
-print(f"OpenViking retry 2/3: {e}")
+print(f"Vector search retry 2/3: {e}")
 ```
 
 ### 4. 类型安全，避免 any
@@ -111,7 +111,7 @@ def search(query: Any) -> Any:
 
 ```markdown
 <!-- 可验证 -->
-- API 端点: `POST /search` (见 `src/openviking/client.py:42`)
+- API 端点: `POST /search` (见 `src/agents_mem/index/layer.py`)
 
 <!-- 不可验证 -->
 - API 端点支持多种搜索模式

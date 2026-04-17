@@ -615,7 +615,7 @@ agents-mem-py/
 │       ├── sqlite/                # 基础设施
 │       │   └── ...
 │       │
-│       ├── openviking/            # OpenViking客户端
+│       ├── embedder/            # Ollama嵌入客户端
 │       │   └── ...
 │       │
 │       └── tools/                 # MCP工具
