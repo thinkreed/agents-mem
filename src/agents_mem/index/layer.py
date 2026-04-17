@@ -23,8 +23,6 @@ from agents_mem.core.types import Scope, EntityType, SearchResult, SearchMode
 from agents_mem.core.uri import URISystem, MaterialURI, Scope as URIScope
 from agents_mem.core.exceptions import SearchError
 from agents_mem.identity.layer import IdentityLayer
-from agents_mem.openviking.client import OpenVikingClient, OpenVikingConfig
-from agents_mem.openviking.uri_adapter import URIAdapter
 from agents_mem.index.metadata import MetadataIndex, MetadataEntry, SearchOptions
 from agents_mem.index.capabilities.vector_search import (
     VectorSearchCapability,
@@ -169,18 +167,18 @@ class IndexLayer:
     Provides indexing and search capabilities:
     - URI System: Build and parse mem:// URIs
     - Metadata Index: Full-text search via SQLite
-    - Vector Search: Semantic search via OpenViking
+    - Vector Search: Semantic search via VectorSearchCapability (optional)
 
     Dependencies:
     - L0 IdentityLayer: Scope validation
 
     Search Modes:
     - fts: MetadataIndex full-text search
-    - semantic: VectorSearchCapability vector search
+    - semantic: VectorSearchCapability vector search (if available)
     - hybrid: RRF fusion of FTS + Vector results
 
     Usage:
-        layer = IndexLayer(identity_layer, db, openviking_client)
+        layer = IndexLayer(identity_layer, db)
         results = await layer.find("query", scope, mode="hybrid")
     """
 
@@ -188,8 +186,6 @@ class IndexLayer:
         self,
         identity_layer: IdentityLayer,
         db: DBConnection,
-        openviking_client: OpenVikingClient | None = None,
-        openviking_config: OpenVikingConfig | None = None,
         account: str = "default",
     ):
         """
@@ -198,31 +194,17 @@ class IndexLayer:
         Args:
             identity_layer: L0 IdentityLayer for scope validation
             db: Database connection
-            openviking_client: Optional OpenViking client
-            openviking_config: Optional config for creating client
             account: Account name for URI adapter
         """
         self._identity = identity_layer
         self._db = db
         self._uri_system = URISystem
-        self._uri_adapter = URIAdapter(account=account)
 
         # Initialize MetadataIndex
         self._metadata_index = MetadataIndex(db, identity_layer)
 
-        # Initialize VectorSearchCapability
-        if openviking_client:
-            self._vector_search = VectorSearchCapability(
-                openviking_client, self._uri_adapter, account
-            )
-        elif openviking_config:
-            self._vector_search = VectorSearchCapability(
-                OpenVikingClient(openviking_config),
-                self._uri_adapter,
-                account,
-            )
-        else:
-            self._vector_search = None
+        # VectorSearchCapability is optional
+        self._vector_search: VectorSearchCapability | None = None
 
     @property
     def metadata_index(self) -> MetadataIndex:

@@ -35,7 +35,7 @@ def main() -> None:
 
     # 运行初始化
     asyncio.run(init_db())
-
+    
     # 创建并运行 MCP 服务器
     mcp = create_mcp_server("agents-mem-py")
     mcp.run()

@@ -6,7 +6,7 @@ Implements the Index Layer for the 6-layer progressive disclosure architecture.
 L1 Responsibilities:
 - URI System (mem:// scheme)
 - Metadata Index (SQLite FTS)
-- Vector Search Capability (OpenViking)
+- Vector Search Capability (optional, via embeddings)
 
 Dependencies:
 - L0 IdentityLayer: Scope validation
@@ -14,11 +14,11 @@ Dependencies:
 Key Classes:
 - IndexLayer: Main L1 class with unified search
 - MetadataIndex: Full-text search via SQLite
-- VectorSearchCapability: Semantic search via OpenViking
+- VectorSearchCapability: Semantic search (optional)
 
 Search Modes:
 - fts: Full-text search
-- semantic: Vector search
+- semantic: Vector search (if available)
 - hybrid: FTS + Vector with RRF fusion
 - progressive: Hybrid with tiered loading
 
@@ -27,7 +27,7 @@ Usage:
     from agents_mem.identity import IdentityLayer
 
     identity = IdentityLayer()
-    index_layer = IndexLayer(identity, db, openviking_client)
+    index_layer = IndexLayer(identity, db)
 
     results = await index_layer.find("query", scope, mode="hybrid")
 """
